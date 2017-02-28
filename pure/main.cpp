@@ -31,6 +31,24 @@ void fillMat(int* M, int height, int width)
 	}
 }
 
+void multiplyMat(
+	int* MO, int* MA, int* MB,
+	int heightA, int widthA,
+	int heightB, int widthB)
+{
+	for (int i = 0; i < heightA; i++)
+	{
+		for (int j = 0; j < widthB; j++)
+		{
+			int res = 0;
+			for (int k = 0; k < widthA; k++)
+			{
+				res += MA[i*widthA + k] * MB[k*widthB + j];
+			}
+			MO[i*widthB + j] = res;
+		}
+	}
+}
 
 int main()
 {
@@ -53,18 +71,7 @@ int main()
 	printMat(MB, heightB, widthB);
 
 	auto start = high_resolution_clock::now();
-	for (int i = 0; i < heightA; i++)
-	{
-		for (int j = 0; j < widthB; j++)
-		{
-			int res = 0;
-			for (int k = 0; k < widthA; k++)
-			{
-				res += MA[i*widthA + k] * MB[k*widthB + j];
-			}
-			MO[i*widthB + j] = res;
-		}
-	}
+	multiplyMat(MO, MA, MB, heightA, widthA, heightB, widthB);
 	auto end = high_resolution_clock::now();
 
 	printf("out:\n");
@@ -72,7 +79,7 @@ int main()
 	printMat(MO, heightA, widthB);
 	
 	nanoseconds duration = duration_cast<nanoseconds>(end - start);
-	printf("time: %dns", duration.count());
+	printf("time: %llins", duration.count());
 	
 	return 0;
 }
