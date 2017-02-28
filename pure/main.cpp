@@ -79,7 +79,7 @@ int main()
 	printMat(MO, heightA, widthB);
 	
 	nanoseconds duration = duration_cast<nanoseconds>(end - start);
-	printf("time: %llins", duration.count());
+	printf("time: %llins\n", duration.count());
 	
 	return 0;
 }
