@@ -3,21 +3,17 @@
 
 #include <chrono>
 
-//using namespace std;
-void printMat(int* M, int height, int width)
+void printMat(const int* M, int height, int width)
 {
 	for (int i = 0; i < height; i++)
 	{
 		for (int j = 0; j < width; j++)
 		{
-			printf("%d ",M[i*width + j]);
-			//cout << M[i*width + j] << " ";
+			printf("%d ", M[i*width + j]);
 		}
 		printf("\n");
-		//cout << "\n";
 	}
 	printf("\n");
-	//cout << endl;
 }
 
 void fillMat(int* M, int height, int width)
@@ -32,7 +28,7 @@ void fillMat(int* M, int height, int width)
 }
 
 void multiplyMat(
-	int* MO, int* MA, int* MB,
+	int* MO, const int* MA, const int* MB,
 	int heightA, int widthA,
 	int heightB, int widthB)
 {
@@ -58,15 +54,15 @@ int main()
 	int widthA = 2;
 	int heightB = 2;
 	int widthB = 5;
-	int* MA = (int*)malloc(4 * heightA*widthA);
-	int* MB = (int*)malloc(4 * heightB*widthB);
-	int* MO = (int*)malloc(4 * heightA*widthB);
+	int* MA = (int*)malloc(sizeof(int) * heightA*widthA);
+	int* MB = (int*)malloc(sizeof(int) * heightB*widthB);
+	int* MO = (int*)malloc(sizeof(int) * heightA*widthB);
 
 	
 	fillMat(MA, heightA, widthA);
 	fillMat(MB, heightB, widthB);
 	printf("in:\n");
-	//cout << "input:\n";
+
 	printMat(MA, heightA, widthA);
 	printMat(MB, heightB, widthB);
 
@@ -75,7 +71,6 @@ int main()
 	auto end = high_resolution_clock::now();
 
 	printf("out:\n");
-	//cout << "result:\n";
 	printMat(MO, heightA, widthB);
 	
 	nanoseconds duration = duration_cast<nanoseconds>(end - start);
