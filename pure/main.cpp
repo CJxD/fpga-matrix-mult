@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <chrono>
+
 //using namespace std;
 void printMat(int* M, int height, int width)
 {
@@ -31,6 +34,8 @@ void fillMat(int* M, int height, int width)
 
 int main()
 {
+	using namespace std::chrono;
+	
 	int heightA = 3;
 	int widthA = 2;
 	int heightB = 2;
@@ -47,7 +52,7 @@ int main()
 	printMat(MA, heightA, widthA);
 	printMat(MB, heightB, widthB);
 
-	
+	auto start = high_resolution_clock::now();
 	for (int i = 0; i < heightA; i++)
 	{
 		for (int j = 0; j < widthB; j++)
@@ -60,9 +65,14 @@ int main()
 			MO[i*widthB + j] = res;
 		}
 	}
+	auto end = high_resolution_clock::now();
 
 	printf("out:\n");
 	//cout << "result:\n";
 	printMat(MO, heightA, widthB);
+	
+	nanoseconds duration = duration_cast<nanoseconds>(end - start);
+	printf("time: %dns", duration.count());
+	
 	return 0;
 }
