@@ -58,7 +58,6 @@ public:
 		if(trans.is_write())
 		{
 			int i, j, k;
-			*(u64*)res = 0;
 			if(flag == ADDR1) valA = *(u32*) &data[0];
 			else if (flag == ADDR2) valB = *(u32*) &data[0];
 			
