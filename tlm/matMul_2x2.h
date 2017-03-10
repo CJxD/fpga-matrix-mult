@@ -20,16 +20,19 @@ typedef tlm::tlm_base_protocol_types base_types_t;
 #define u32 unsigned int
 
 using namespace std;
-
 /*
 WIDTH of each matrix element = 8 bits
-payload structure (bits):
-	Name		Start			End						Length			
-	A		 		0 			 	4*WIDTH-1			4*WIDTH				4x 8-bit int				
-	B		 		4*WIDTH 	8*WIDTH-1			4*WIDTH				4x 8-bit int
-	Res			8*WIDTH		16*WIDTH-1		8*WIDTH				4x 16-bit int	
-total length = 16*WIDTH (16 bytes)
+write mode
+	addr 0xE0002000 -> write to Mat A
+	addr 0xE0002008 -> wirte to Mat B
+read mode
+	addr 0xE0002010 -> read low 32 bits of res
+	addr 0xE0002018 -> read high 32 bits of res
 */
+#define ADDR1 0x0
+#define ADDR2 ADDR1+8
+#define ADDR3 ADDR2+8
+#define ADDR4 ADDR3+8
   
 SC_MODULE (matMul_2x2)
 {
@@ -41,25 +44,37 @@ public:
   	port0.register_b_transport(this, &matMul_2x2::b_transact);
   }
   
+  u16 res[4] = {0, 0, 0, 0};
+  u32 valA = 0;
+  u32 valB = 0;
+  
 	void b_transact(tlm::tlm_generic_payload &trans, sc_time &delay) 
   {
 		unsigned char *data = trans.get_data_ptr();
+		u64 addr = trans.get_address();
+		int flag = addr & 0xFF;
 		
-		int i, j, k;
-		u32 valA = *(u32*) &data[0];
-		u32 valB = *(u32*) &data[4];
-		
-		u8* A = (u8*)&valA;
-		u8* B = (u8*)&valB;
-
-		u16 res[4] = {0, 0, 0, 0};
-
-		for(i=0;i<2;i++)
-    	for(j=0;j<2;j++) 
-        for(k=0;k<2;k++) 
-        	 res[i*2+j] +=  A[i*2+k] * B[k*2+j];
-        	
-		*(u64*)&data[8] = *(u64*) res;
+		//printf("[dev] addr is %llx\n", addr);
+		if(trans.is_write())
+		{
+			int i, j, k;
+			if(flag == ADDR1) valA = *(u32*) &data[0];
+			else if (flag == ADDR2) valB = *(u32*) &data[0];
+			
+			u8* A = (u8*)&valA;
+			u8* B = (u8*)&valB;
+			for(i=0;i<2;i++)
+		  	for(j=0;j<2;j++) 
+		      for(k=0;k<2;k++) 
+		      	 res[i*2+j] +=  A[i*2+k] * B[k*2+j];
+		}
+		else
+		{
+			if(flag == ADDR3) *(u32*)&data[0] = *(u32*) &res[0];
+			else if(flag == ADDR4) *(u32*)&data[0] = *(u32*) &res[2];
+		}
+       
+   	//printf("[dev] data is 0x%08x\n", *(u32*) data);
 	  trans.set_response_status( tlm::TLM_OK_RESPONSE);
   }
   

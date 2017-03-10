@@ -20,8 +20,8 @@ SC_MODULE(ex3)
 		tlm::tlm_generic_payload* p = new tlm::tlm_generic_payload();
 		sc_time delay = sc_time(30, SC_NS);
 
-		unsigned char data[16];
-		p->set_data_length(16); 
+		unsigned char data[4];
+		p->set_data_length(4); 
 		p->set_data_ptr(data);  
 
 		p->set_streaming_width(8);
@@ -29,25 +29,41 @@ SC_MODULE(ex3)
 		p->set_dmi_allowed(false);
 		p->set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
 		 
-		u32* A = (u32*) &data[0];
-		u32* B = (u32*) &data[4];
-		u64* res = (u64*) &data[8];
-
+		u32* val = (u32*) &data[0];
+		u32 hRes = 0, lRes = 0;
+		u32 matA = 0x01020304;
+		u32 matB = 0x01000001;
+		u32 membase = 0xE0002000;
+		
 		sc_core::sc_time d; 
-		*A = 0x12345678; *B = 0x12345678;
+		
+		*val = matA; 
+		p->set_write();
+		p->set_address(membase);
 		socket->b_transport(*p, d);  
 		
-		printf("matA = 0x%08x\n", *A);
-		printf("matB = 0x%08x\n", *B);
-		printf("res = 0x%016llx\nmatrix form:\n", *res);
-		for(int i=0;i<2;i++)
-		{
-			for(int j=0;j<2;j++)
-			{
-				printf("%llu ", 0xFFFF&((*res)>>(i*2+j)*16));
-			}
-			printf("\n");
-		}	
+		
+		*val = matB; 
+		p->set_address(membase+8);
+		socket->b_transport(*p, d); 
+		
+
+		p->set_read();
+		p->set_address(membase+16);
+		socket->b_transport(*p, d); 
+		lRes = *val;
+		
+		
+		p->set_read();
+		p->set_address(membase+24);
+		socket->b_transport(*p, d); 
+		hRes = *val;
+		
+		printf("matrix A:\n%d %d\n%d %d\n", matA & 0xFF, matA>>8 & 0xFF, matA>>16 & 0xFF, matA>>24 & 0xFF); 
+		printf("matrix B:\n%d %d\n%d %d\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF); 
+		
+		printf("res = 0x%08x 0x%08x\n", hRes, lRes);
+		printf("matrix form:\n%d %d\n%d %d\n", lRes & 0xFFFF, lRes>>16 & 0xFFFF, hRes & 0xFFFF, hRes>>16 & 0xFFFF); 
 	}
 	
 }; 
