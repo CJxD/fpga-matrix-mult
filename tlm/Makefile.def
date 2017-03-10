@@ -1,0 +1,17 @@
+
+#
+# Please see the web pages : http://www.cl.cam.ac.uk/research/srg/han/ACS-P35/am-toyesl/
+#
+#
+# ACS MPhil settings:
+
+# You will need to set ARCH to be linux64 or x86_64 or whatever.
+
+
+ARCH		= linux64
+
+SYSCDIR = /usr/groups/han/clteach/systemc/systemc-current
+SOCDAM  = /usr/groups/han/clteach/socdam
+
+LDFLAGS = -L$(SYSCDIR)/lib-$(ARCH) -lsystemc
+LANG    =C
