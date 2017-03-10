@@ -1,11 +1,19 @@
 #include <stdio.h>
 #include <iostream>
 #include <bitset>
-#include "systemc.h"
-#include "tlm_utils/simple_target_socket.h"
-#include "tlm_utils/multi_passthrough_target_socket.h"
-#include "tlm_core/tlm_2/tlm_generic_payload/tlm_gp.h"
+#include <systemc.h>
+#include <tlm.h>
+#include <tlm_utils/simple_target_socket.h>
+
+typedef tlm::tlm_base_protocol_types base_types_t;
  
+#ifdef USE_PLUGINS
+#define PLUGIN_NAME "matMul_2x2"
+#define PLUGIN_MODULE matMul_2x2
+#endif
+
+#define BUSWIDTH 64
+
 #define u64 unsigned long long
 #define u16 uint16_t
 #define u8 uint8_t
@@ -27,7 +35,7 @@ SC_MODULE (matMul_2x2)
 {
 public:
 
-	tlm_utils::simple_target_socket<matMul_2x2, 32, tlm::tlm_base_protocol_types> port0;	
+	tlm_utils::simple_target_socket<matMul_2x2, BUSWIDTH, base_types_t> port0;	
   matMul_2x2(sc_module_name name): sc_module(name), port0("port0") 
   {
   	port0.register_b_transport(this, &matMul_2x2::b_transact);

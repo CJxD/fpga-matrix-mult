@@ -7,7 +7,7 @@
 
 SC_MODULE(ex3)
 {
-  tlm_utils::simple_initiator_socket<ex3> socket;
+  tlm_utils::simple_initiator_socket<ex3, BUSWIDTH, base_types_t> socket;
   
   SC_CTOR(ex3) : socket("socket")
   {
@@ -44,7 +44,7 @@ SC_MODULE(ex3)
 		{
 			for(int j=0;j<2;j++)
 			{
-				printf("%d ", 0xFFFF&((*res)>>(i*2+j)*16));
+				printf("%llu ", 0xFFFF&((*res)>>(i*2+j)*16));
 			}
 			printf("\n");
 		}	
