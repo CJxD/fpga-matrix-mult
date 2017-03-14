@@ -7,7 +7,7 @@
 
 SC_MODULE(ex3)
 {
-  tlm_utils::simple_initiator_socket<ex3, BUSWIDTH, base_types_t> socket;
+  tlm_utils::simple_initiator_socket<ex3, BUS_WIDTH, base_types_t> socket;
   
   SC_CTOR(ex3) : socket("socket")
   {
@@ -17,7 +17,7 @@ SC_MODULE(ex3)
   private:
   void run() 
   {
-		tlm::tlm_generic_payload* p = new tlm::tlm_generic_payload();
+		payload_t* p = new payload_t();
 		sc_time delay = sc_time(30, SC_NS);
 
 		unsigned char data[4];

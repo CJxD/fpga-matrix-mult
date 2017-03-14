@@ -5,14 +5,21 @@
 #include <tlm.h>
 #include <tlm_utils/simple_target_socket.h>
 
-typedef tlm::tlm_base_protocol_types base_types_t;
- 
 #ifdef USE_PLUGINS
 #define PLUGIN_NAME "matMul_2x2"
 #define PLUGIN_MODULE matMul_2x2
 #endif
 
-#define BUSWIDTH 64
+#define BUS_WIDTH 64
+
+#ifdef TLM_POWER3
+#include <tlm_power>
+typedef PW_TLM_TYPES base_types_t;
+typedef PW_TLM_PAYTYPE payload_t;
+#else
+typedef tlm::tlm_base_protocol_types base_types_t;
+typedef tlm::tlm_generic_payload payload_t;
+#endif
 
 #define u64 unsigned long long
 #define u16 uint16_t
@@ -34,11 +41,15 @@ read mode
 #define ADDR3 ADDR2+8
 #define ADDR4 ADDR3+8
   
-SC_MODULE (matMul_2x2)
+struct matMul_2x2:
+	public sc_module
+#ifdef TLM_POWER3
+  , public pw_module
+#endif
 {
 public:
 
-	tlm_utils::simple_target_socket<matMul_2x2, BUSWIDTH, base_types_t> port0;	
+	tlm_utils::simple_target_socket<matMul_2x2, BUS_WIDTH, base_types_t> port0;	
   matMul_2x2(sc_module_name name): sc_module(name), port0("port0") 
   {
   	port0.register_b_transport(this, &matMul_2x2::b_transact);
@@ -48,7 +59,7 @@ public:
   u32 valA = 0;
   u32 valB = 0;
   
-	void b_transact(tlm::tlm_generic_payload &trans, sc_time &delay) 
+	void b_transact(payload_t &trans, sc_time &delay) 
   {
 		unsigned char *data = trans.get_data_ptr();
 		u64 addr = trans.get_address();
