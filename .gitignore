@@ -8,6 +8,9 @@
 *.gch
 *.pch
 
+# Assemblies
+*.s
+
 # Libraries
 *.lib
 *.a
