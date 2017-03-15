@@ -22,9 +22,9 @@ matMul.dis: matMul
 	$(OBJD) -d $< > $@
 
 run: matMul
-	ulimit -t 100000 ; $(CMD) -image ./$< -name $< -- 0x01020304 0x01000001 1
+	ulimit -t 100000 ; $(CMD) -image ./$< -name identity.test -- 0x01020304 0x01000001 1
 	echo done
 
 clean:
-	rm -f matMul *.o *.s *.txt *.dis
+	rm -f matMul *.o *.s *.test *.txt *.dis *.vcd
 

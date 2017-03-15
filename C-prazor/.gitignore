@@ -1,3 +1,4 @@
 matMul
 *.txt
 *.vcd
+*.test
