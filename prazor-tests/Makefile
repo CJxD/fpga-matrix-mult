@@ -6,25 +6,24 @@ all: matMul matMul.dis
 include $(VHLS)/images/Makefile.inc
 
 CFLAGS+=-std=c99 #-mfloat-abi=hard
-EXTRALIBS+=dummy_isr.o 
+
+EXTRALIBS += dummy_isr.o 
 
 # one core command line
-#CMD=LD_LIBRARY_PATH=/usr/local/lib  $(SIM) $(DRAM_FLAGS) -cores 1 -tracelevel 0 -global-qk-ns 1 -no-caches 
 CMD=$(SIM) $(DRAM_FLAGS) -self-starting-cores 1 -global-qk-ns 100000 -vcd-power-plot -tracelevel 0
 
 matMul.o: matMul.c
 	$(CC) $(CFLAGS) -I$(DDRIVERS)/uart64_cbg -c $^ -o $@
 
-matMul: matMul.o $(LIBS) $(CRT1) $(EXTRALIBS) 
+matMul: $(CRT1) matMul.o $(EXTRALIBS) $(LIBS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 matMul.dis: matMul
 	$(OBJD) -d $< > $@
 
 run: matMul
-	ulimit -t 100000 ; $(CMD) -image ./$< -name identity.test -- 0x01020304 0x01000001 1
-	echo done
+	$(CMD) -image ./matMul -name identity.test -- 0x01020304 0x01000001 1 | tee identity.test.output
+	@echo "Simulation completed successfully"
 
 clean:
-	rm -f matMul *.o *.s *.test *.txt *.dis *.vcd
-
+	rm -f matMul *.o *.s *.test* *.txt *.dis *.vcd

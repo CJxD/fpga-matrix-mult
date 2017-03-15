@@ -1,10 +1,6 @@
 /* C code to run on Prazor after plugging in the device */
 
-#ifdef USE_PRLIBC
-#include "prstdio.h"
-#else
 #include <stdio.h>
-#endif
 
 #define WRITE_BASE 0xE0002000
 #define READ_BASE 0xE0002010
@@ -21,7 +17,7 @@ int main(int argc, char* argv[])
 
 	if (argc < 2 || argc > 3)
 	{
-		fprintf(stderr, "Usage: matMul <matrixA> <matrixB> [iterations]");
+		fprintf(stderr, "Usage: matMul <matrixA> <matrixB> [iterations]\n");
 		return 1;
 	}
 

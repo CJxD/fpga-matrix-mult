@@ -1,5 +1,5 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export VHLS=$DIR/../vhls
+export VHLS=$DIR/vhls
 
 export CLTEACH=/usr/groups/han/clteach
 export BOOST=$CLTEACH/boost/boost_1_48_0
