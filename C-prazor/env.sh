@@ -1,5 +1,5 @@
-export VHLS=/home/hc475/P35/sim
-
+DIR="$(dirname "${BASH_SOURCE[0]}")"
+export VHLS=$DIR/../vhls
 
 export CLTEACH=/usr/groups/han/clteach
 export BOOST=$CLTEACH/boost/boost_1_48_0
