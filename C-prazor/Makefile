@@ -1,7 +1,7 @@
-VHLS?=/home/hc475/P35/sim
+VHLS?=../vhls
 
-.PHONY: all run
-all: matMul
+.PHONY: all run clean
+all: matMul matMul.dis
 
 include $(VHLS)/images/Makefile.inc
 
@@ -13,14 +13,16 @@ EXTRALIBS+=dummy_isr.o
 CMD=$(SIM) $(DRAM_FLAGS) -self-starting-cores 1 -global-qk-ns 100000 -vcd-power-plot -tracelevel 1 -watch b8 +20 -tracelevel 0
 
 matMul.o: matMul.c
-	$(CC) $(CFLAGS) -I$(DDRIVERS)/uart64_cbg -c $< -o $@
+	$(CC) $(CFLAGS) -I$(DDRIVERS)/uart64_cbg -c $^ -o $@
 
 matMul: matMul.o $(LIBS) $(CRT1) $(EXTRALIBS) 
-	$(LD) $(LDFLAGS) -o $@ $< $(LDLIBS) 
-	$(OBJD) -d $@ > matMul.dis
+	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+matMul.dis: matMul
+	$(OBJD) -d $< > $@
 
 run: matMul
-	ulimit -t 100000 ; $(CMD) -image ./$@ -- 0x01020304 0x01000001 1
+	ulimit -t 100000 ; $(CMD) -image ./$< -name $< -- 0x01020304 0x01000001 1
 	echo done
 
 clean:
