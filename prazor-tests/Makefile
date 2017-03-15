@@ -1,6 +1,6 @@
 VHLS?=../vhls
 
-.PHONY: all run clean
+.PHONY: all run clean-objs clean
 all: matMul matMul.dis
 
 include $(VHLS)/images/Makefile.inc
@@ -29,5 +29,9 @@ run: matMul
 	$(CMD) -image ./matMul -name hard.10k.test		-- 0xBA5EBA11 0xBEEFBABE 10000
 	@echo "done"
 
-clean:
-	rm -f matMul *.o *.s *.test* *.txt *.dis *.vcd
+clean-objs:
+	rm -f *.o *.s *.dis
+
+clean: | clean-objs
+	rm -f matMul *.test* *.txt *.vcd
+
