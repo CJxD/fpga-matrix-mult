@@ -10,7 +10,7 @@ EXTRALIBS+=dummy_isr.o
 
 # one core command line
 #CMD=LD_LIBRARY_PATH=/usr/local/lib  $(SIM) $(DRAM_FLAGS) -cores 1 -tracelevel 0 -global-qk-ns 1 -no-caches 
-CMD=$(SIM) $(DRAM_FLAGS) -self-starting-cores 1 -global-qk-ns 100000 -vcd-power-plot -tracelevel 1 -watch b8 +20 -tracelevel 0
+CMD=$(SIM) $(DRAM_FLAGS) -self-starting-cores 1 -global-qk-ns 100000 -vcd-power-plot -tracelevel 0
 
 matMul.o: matMul.c
 	$(CC) $(CFLAGS) -I$(DDRIVERS)/uart64_cbg -c $^ -o $@
