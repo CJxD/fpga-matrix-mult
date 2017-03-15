@@ -1,0 +1,50 @@
+# Compiled source
+*.o
+*.a
+*.lo
+*.la
+
+.dirstamp
+
+src/vhls
+
+# configure files
+aclocal.m4
+autom4te.cache/
+
+configure
+config.log
+config.status
+
+libtool
+
+# Makefile.in files
+Makefile.in
+
+# Files that are modified
+*~
+
+# Directories
+.deps/
+.libs/
+
+# Simulator names
+vhls-*
+
+# The following Makefiles we should not be pushed to repository
+Makefile
+
+# Remove all files from images directory except source files and Makefile
+images/**/*
+!images/**/*.c
+!images/**/*.h
+!images/**/*.S
+!images/**/Makefile*
+
+# For boards parallela remove all except
+boards/parallella/linux/*
+!boards/parallella/linux/Makefile
+!boards/parellella/linux/README.txt
+!boards/parallella/linux/COMPILE-HELP.md
+!boards.parallella/linux/*.S
+!boards/parallella/linux/*.dts

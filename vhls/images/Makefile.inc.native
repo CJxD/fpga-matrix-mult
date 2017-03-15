@@ -1,0 +1,156 @@
+# Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
+#
+# Native mode Makefile setup.
+#
+# In general, the ARM can be used big or little endian.  We are little endian here.
+# For parallella boards we need : ELF 32-bit LSB executable, ARM, EABI5 version 1.
+#
+
+# Note that prlibc can be used for NATIVE compilations but this makefile assumes you will use the installed libc.
+
+
+
+
+TARCH     ?=  NATIVE
+
+DDRIVERS  ?= $(VHLS)/src/devicedrivers
+THREADLIB ?= $(VHLS)/src/crt/djgthreads
+IMAGES	  ?= $(VHLS)/images
+
+
+# Computer Lab Settings:
+ARM7UTILS     =/usr/bin
+ARM7GCC       =/usr/bin
+
+
+# Memory map (nominal)
+
+export PROGRAM   ?=0x0000000..0x18000
+# The following STACKBASE definition is also hardwired in some arch-start code.
+export STACKBASE ?=0x0400000  # First stack top, higher cores use work upwards from here
+export DATABASE  ?=0x00E0000
+export BSSBASE   ?=0x00E8000
+
+# 7ef0_0000 heap space -> Nearly 2 GByte.
+export HEAPBASE  ?=0x10000000
+export HEAPEND   ?=0x7FF00000
+
+
+
+SIM = $(VHLS)/src/arm/vhls-arm7smp
+
+# single core command
+CMD=LD_LIBRARY_PATH=/usr/local/lib:$(TLM_POWER3):$(LD_LIBRARY_PATH)  time $(SIM) $(DRAM_FLAGS) -cores 1 -tracelevel 1 -coremask 0 -global-qk-ns 1000 -image $(NAME)
+
+
+
+# Toolchain (gcc and binutils) location.
+# C Compiler
+CC = gcc
+#CC = LD_LIBRARY_PATH=$(ARM7GCC) $(ARM7GCC)/bin/$(ELFORLINUX)gcc
+CC1 = $(CC) -S
+
+# Bintools:
+# Link Editor
+LD = ld
+
+# Assembler
+AS = as
+
+# Object file decoder (also use readelf -a)
+NM = nm
+
+# Object dump - gives a good disassembly/dump file
+OBJD =  objdump
+# $(ELFORLINUX)objdump -d cachetest
+OBJC = objcopy
+
+
+
+
+# use arm-linux-gnu-gcc -print-libgcc-file-name
+# to print the file you need
+# /usr/lib/gcc/arm-linux-gnueabi/4.9.1/libgcc.a
+
+LIBGCC    ?= /usr/lib
+STDINC    ?=/usr/include
+
+# Here is a useful cmd for automating the following: $(CC1) --print-libgcc-file-name
+STDLD     ?=/usr/lib/gcc/arm-linux-gnueabi/4.6.3
+
+# Since endianness is same as underlying x86 workstation we put BIGE_ONE as zero.
+IO_ENDIAN_OFFSET=-DBIGE_IONE=0
+
+# The new gcc linker tool is, by default, sorting the order of functions, eg the one called 'main'.
+# The fix is to add to CFLAGS  -fno-reorder-functions   -fno-toplevel-reorder
+
+ARMCFLAGS =
+ifndef USE_ARM
+ARMCFLAGS += -mthumb
+endif
+
+ifdef USE_ARM
+ARMCFLAGS += -marm
+endif
+
+ARMCFLAGS += -DARM32 -I$(STDINC) -DM32 -mthumb-interwork -march=armv7-a
+
+CFLAGS=-DNATIVE 
+CFLAGS += $(ARMCFLAGS)
+
+
+ifeq ($(GET_ENERGY_FROM_PROBE),1)
+# for now
+PROBECLIENT=~djg11/old-instruments/currentprobe-client.c
+endif
+
+
+
+ifeq ($(USE_PRLIBC),1)
+
+
+# C FLAGS - for easier to read assembler use -O0 (no optimisation)
+
+CFLAGS +=  -I$(VHLS)/src/arm -I$(THREADLIB) -I$(TENOS)  -fno-reorder-functions   -fno-toplevel-reorder $(IO_ENDIAN_OFFSET) 
+
+LDFLAGS = -Ttext 0x0  -Tdata $(DATABASE) -Tbss $(BSSBASE)
+LIBS  ?=  prlibc.o archglue.o arm_abi_runtime.o uart64_driver.o __aeabi_read_tp.o
+LDLIBS = -L$(LIBGCC) -L$(STDLD) -Bstatic -lgcc
+
+
+CRT1=archstart.o
+
+else
+
+#CRT1=arm7_crt.o
+
+# need -lc when using libc instead of prlibc
+#LDLIBS = -L$(LIBGCC) -L$(STDLD)  -lgcc -lc
+#LIBS = archglue.o arm_abi_runtime.o uart64_driver.o 
+
+endif
+
+ifndef USE_ARM32
+UCLIBCCRT = $(VHLS)/src/crt/uClibc/arch/arm32/thumb_crt.S
+endif
+
+ifdef USE_ARM32
+UCLIBCCRT = $(VHLS)/src/crt/uClibc/arch/arm32/arm32_crt.S
+endif
+
+
+$(CRT1):$(UCLIBCCRT) 
+	$(AS) -o $@ $<
+
+# cancel internal .c -> .o rule that does not have sufficient dependecies
+%.o: %.c
+
+%.o: %.s
+	$(AS) -o $@ $<
+
+%.s: %.c
+	$(CC1) -o $@ $(CFLAGS)  $<
+
+#eof
+
+

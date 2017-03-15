@@ -1,0 +1,52 @@
+Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
+
+Pre git: svn co svn+ssh://secsvn@svn-hprls.cl.cam.ac.uk/prazor/trunk/dist
+
+# SYSTEMC=/usr/groups/han/clteach/systemc/systemc-2.3.0
+
+export LDFLAGS=-L$SYSTEMC/lib-linux   -L/usr/local/lib 
+
+??Changes: the TLM_PATH macro we have been using unfortunately seems to disagree with
+what the tlm2 library expects: it wants its own root to be on the -I path.  Its own
+root is now $SYSTEMC/include  since it is tlm_core/tlm_2 which is found in that root.
+
+
+# If boost is not built
+  $ chmod +x ./bootstrap.sh 
+  $ chmod +x tools/build/v2/engine/*.sh
+  $ ./boostrap.sh
+  $ ./b2
+# After building boost it configures with something like the following pointer
+#export BOOST_ROOT=/usr/local/boost/boost_1_48_0
+
+# You need to compile and then do a 'make install' on the distributable version of tlm power (not under trunk/dist and  ignore the tlm_power_cbg folder that should be deleted now)
+  $ svn co svn+ssh://secsvn@svn-hprls.cl.cam.ac.uk/prazor/trunk/tlm-power3
+
+  # Perhaps miss off the installed references to tlm-power3 in the following for a clean build if one version is installed already.
+  $ export LDFLAGS="-L$SYSTEMC/lib-linux64 -L/usr/local/lib -L/usr/local/lib/tlm-power3"
+  $ export CXXFLAGS="-I$SYSTEMC/include/ -I$BOOST_ROOT -I$SYSTEMC/include/tlm_core/tlm_2 -I/usr/local/include/tlm-power3 -g -O2"
+
+  $ cd tlm-power3 
+  $ ./configure
+  $ make
+  $ sudo make install
+
+# unfortunately we have a different name for the boost path here...
+  $ export BOOST_PATH=/usr/local/boost/boost_1_48_0
+  $ rm src/*.dep
+  & make
+
+# -DTLM_POWER3 -DPW_TLM_PAYLOAD=3
+export BOOST_ROOT=/usr/groups/han/clteach/boost/boost_1_48_0
+export LDFLAGS="-L$SYSTEMC/lib-linux64 -L/usr/local/lib -L/usr/local/lib/tlm-power3"
+export CXXFLAGS="-I$SYSTEMC/include/ -I$BOOST_ROOT -I$SYSTEMC/include/tlm_core/tlm_2 -I/usr/local/include/tlm-power3 -g -O2" 
+
+# Now build vhls 
+  $ cd vhls
+  $ ./configure  
+  $ make
+
+Further notes:
+To remove the silent make in configure.ac in vhls directory either uncomment AM_SILENT_RULES([yes]) line or set yes to no. Then you would need to do autoreconf.
+
+For adding additional flags configure should be able to pick them up from CXXFLAGS. What happens if you add them to CPPFLAGS? Alternatively what you can do is for module that you want to have -g and -02 flags you can modify Makefile.am file and either modify AM_CPPFLAGS or AM_CXXFLAGS.

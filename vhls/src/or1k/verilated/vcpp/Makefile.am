@@ -1,0 +1,5 @@
+AM_CPPFLAGS = -fPIC -I. -MMD -DVL_PRINTF=printf -DVM_TRACE=0 -DVM_COVERAGE=0
+lib_LTLIBRARIES = libVor1200_top__ALL.la
+libVor1200_top__ALL_la_SOURCES = Vor1200_top__ALLcls.cpp Vor1200_top__ALLsup.cpp verilated.cpp
+libVor1200_top__ALL_la_LDFLAGS = -export-dynamic
+EXTRA_DIST = Vor1200_top.cpp Vor1200_top_or1200_rf.cpp Vor1200_top__Syms.cpp Vor1200_top_or1200_cpu.cpp Vor1200_top_or1200_rfram_generic.cpp Vor1200_top_or1200_ctrl.cpp  Vor1200_top_or1200_top.cpp Vor1200_top.h Vor1200_top_or1200_cpu.h Vor1200_top_or1200_rf.h Vor1200_top_or1200_top.h Vor1200_top__Inlines.h Vor1200_top_or1200_ctrl.h Vor1200_top_or1200_rfram_generic.h Vor1200_top__Syms.h verilated_config.h verilated_dpi.h verilated_save.h verilated_vcd_c.cpp verilated_vpi.cpp verilated_config.h.in verilated.h verilated_sc.h verilated_vcd_c.h verilated_vpi.h verilated.cpp verilated_heavy.h verilatedos.h verilated_syms.h verilated_vcd_sc.cpp verilated_dpi.cpp verilated_imp.h verilated_save.cpp verilated.v verilated_vcd_sc.h vltstd/svdpi.h vltstd/vpi_user.h

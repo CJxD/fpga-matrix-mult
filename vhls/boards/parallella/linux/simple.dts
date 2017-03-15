@@ -1,0 +1,150 @@
+/* Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com> */
+
+/dts-v1/;
+
+/ {
+	compatible = "xlnx,zynq-7000";
+	#address-cells = <0x1>;
+	#size-cells = <0x1>;
+	interrupt-parent = <&gic>;
+	model = "Puzovic/Greaves Simple DTS";
+
+	chosen {
+		bootargs = "console=ttyPS0,115200 root=/dev/mmcblk0p1 rw earlyprintk rootfstype=ext4 rootwait";
+		linux,stdout-path = "/amba@0/serial@e0001000";
+	};
+
+	memory {
+		device_type = "memory";
+                reg = <0x000000000 0x20000000>;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#cpus = <0x2>;
+		#size-cells = <0>;
+		ps7_cortexa9_0: cpu@0 {
+			compatible = "arm,cortex-a9";
+			d-cache-line-size = <0x20>;
+			d-cache-size = <0x8000>;
+			device_type = "cpu";
+			i-cache-line-size = <0x20>;
+			i-cache-size = <0x8000>;
+			reg = <0x0>;
+		};
+		ps7_cortexa9_1: cpu@1 {
+			compatible = "arm,cortex-a9";
+			d-cache-line-size = <0x20>;
+			d-cache-size = <0x8000>;
+			device_type = "cpu";
+			i-cache-line-size = <0x20>;
+			i-cache-size = <0x8000>;
+			reg = <0x1>;
+		};
+	};
+
+        amba@0 {
+		compatible = "simple-bus";
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		ranges;
+
+		gic: intc@f8f01000 {
+			interrupt-controller;
+			compatible = "arm,cortex-a9-gic";
+			#interrupt-cells = <3>;
+			reg = <0xf8f01000 0x1000>,
+			      <0xf8f00100 0x0100>;
+		};
+
+                pl310@f8f02000 {
+			compatible = "arm,pl310-cache";
+			cache-unified;
+			cache-level = <2>;
+			reg = <0xf8f02000 0x1000>;
+			arm,data-latency = <3 2 2>;
+			arm,tag-latency = <2 2 2>;
+		};
+
+		/* UART-->MIO 8:9 */
+		uart: uart@e0001000 {
+			compatible = "xlnx,xuartps";
+			reg = <0xe0001000 0x1000>;
+			interrupts = < 0 50 4>;
+ 			interrupt-parent = <&gic>;
+			clock-names = "ref_clk", "aper_clk";
+			clocks = <&clkc 24>, <&clkc 41>;
+			port-number = <0>;
+			current-speed = <115200>;
+			device_type = "serial";
+		};
+
+
+		slcr: slcr@f8000000 {
+		        #address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "xlnx,zynq-slcr", "syscon";
+			reg = <0xf8000000 0x1000>;
+			ranges ;
+			clkc: clkc {
+					#clock-cells = <1>;
+					clock-output-names = "armpll", "ddrpll", "iopll", "cpu_6or4x", "cpu_3or2x", "cpu_2x", "cpu_1x", "ddr2x", "ddr3x", "dci", "lqspi", "smc", "pcap", "gem0", "gem1", "fclk0", "fclk1", "fclk2", "fclk3", "can0", "can1", "sdio0", "sdio1", "uart0", "uart1", "spi0", "spi1", "dma", "usb0_aper", "usb1_aper", "gem0_aper", "gem1_aper", "sdio0_aper", "sdio1_aper", "spi0_aper", "spi1_aper", "can0_aper", "can1_aper", "i2c0_aper", "i2c1_aper", "uart0_aper", "uart1_aper", "gpio_aper", "lqspi_aper", "smc_aper", "swdt", "dbg_trc", "dbg_apb";
+					compatible = "xlnx,ps7-clkc";
+					ps-clk-frequency = <33333333>;
+					fclk-enable = <0xf>;
+					reg = <0x100 0x100>;
+				};
+		};
+
+		timer@0xf8001000 {
+		        compatible = "cdns,ttc";
+			reg = <0xf8001000 0x1000>;
+			interrupt-names = "ttc0", "ttc1", "ttc2";
+			interrupts = < 0 10 4 0 11 4 0 12 4 >;
+			interrupt-parent = <&gic>;
+			clocks = <&clkc 6>;
+		};
+
+		timer@f8f00600 {
+			compatible = "arm,cortex-a9-twd-timer";
+			reg = <0xf8f00600 0x20>;
+			interrupts = <1 13 0x301>;
+			clocks = <&clkc 4>;
+			interrupt-parent = <&gic>;
+		};
+
+		swdt@f8005000 {
+			device_type = "watchdog";
+			compatible = "xlnx,ps7-wdt-1.00.a", "xlnx,zynq-wdt-1.00.a";
+			reg = <0xf8005000 0x100>;
+			interrupts = <0 9 4>;
+			interrupt-parent = <&gic>;
+			clocks = <&clkc 45>;
+			reset = <0>;
+			timeout = <10>;
+		};
+
+		scuwdt@f8f00620 {
+			device_type = "watchdog";
+			compatible = "arm,mpcore_wdt";
+			reg = <0xf8f00620 0x20>;
+			clocks = <&clkc 4>;
+			reset = <1>;
+		};
+
+		/* MICRO-SD (SD1)-->MIO 10:15 */	
+		sdhci@e0101000 {
+		        compatible = "xlnx,ps7-sdio-1.00.a", "arasan,sdhci-8.9a";
+			reg = <0xe0101000 0x1000>;
+			interrupts = <0x0 0x2f 0x0>;
+			interrupt-parent = <&gic>;
+			clock-names = "clk_xin", "clk_ahb";
+			clocks = <&clkc 22>, <&clkc 33>;
+			xlnx,has-cd = <0x0>;
+			clock-frequency = <50000000>;
+		};
+
+        
+        };
+
+};

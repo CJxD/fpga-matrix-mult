@@ -1,0 +1,179 @@
+# Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
+#
+# ARM32-specific Makefile setup.
+#
+# In general, the ARM can be used big or little endian.  We are little endian here.
+# For parallella boards we need : ELF 32-bit LSB executable, ARM, EABI5 version 1.
+#
+
+# You may be able to install pre-built arm gcc and bintools on your linux box with "yum install gcc-arm-linux-gnu"
+
+
+# Linking remotely-compiled or thumb2 code may give this sort of error:
+# arm-linux-gnu-ld: error: sumroutines-s512-o0.o uses VFP register arguments, array-summing does not
+# arm-linux-gnu-ld: failed to merge target specific data of file sumroutines-s512-o0.o
+# Undefining the USE_ARM32 flag, that adds, -mthumb-interwork -march=armv7-a -mthumb, will make it work normally.
+
+
+TARCH     ?=  ARM32
+
+DDRIVERS  ?= $(VHLS)/src/devicedrivers
+THREADLIB ?= $(VHLS)/src/crt/djgthreads
+IMAGES	  ?= $(VHLS)/images
+
+
+# Computer Lab Settings:
+ARM7UTILS     =/usr/bin
+ARM7GCC       =/usr/bin
+#ELFORLINUX    ?=arm-linux-gnu
+ELFORLINUX   ?=arm-linux-gnueabi
+
+
+# Memory map (nominal)
+
+export PROGRAM   ?=0x0000000..0x18000
+# The following STACKBASE definition is also hardwired in some arch-start code.
+export STACKBASE ?=0x0400000  # First stack top, higher cores use work upwards from here
+export DATABASE  ?=0x00E0000
+export BSSBASE   ?=0x00F8000
+
+# 7ef0_0000 heap space -> Nearly 2 GByte.
+export HEAPBASE  ?=0x10000000
+export HEAPEND   ?=0x7FF00000
+
+
+
+SIM = $(VHLS)/src/vhls -platform $(VHLS)/src/platform/arm/zynq/parallella/.libs/libzynq.so
+
+# single core command
+CMD=LD_LIBRARY_PATH=/usr/local/lib:$(TLM_POWER3):$(LD_LIBRARY_PATH)  time $(SIM) $(DRAM_FLAGS) -cores 1 -tracelevel 1 -coremask 0 -global-qk-ns 1000 -image $(NAME)
+
+
+
+# Toolchain (gcc and binutils) location.
+# C Compiler
+CC = $(ARM7GCC)/$(ELFORLINUX)-gcc
+#CC = LD_LIBRARY_PATH=$(ARM7GCC) $(ARM7GCC)/bin/$(ELFORLINUX)-gcc
+CC1 = $(CC) -S
+
+# Bintools:
+# Link Editor
+LD = $(ARM7UTILS)/$(ELFORLINUX)-ld
+
+# Assembler
+AS = $(ARM7UTILS)/$(ELFORLINUX)-as
+
+# Object file decoder (also use readelf -a)
+NM = $(ARM7UTILS)/$(ELFORLINUX)-nm
+
+# Archiver
+AR = $(ARM7UTILS)/$(ELFORLINUX)-ar
+
+# Object dump - gives a good disassembly/dump file
+OBJD =  $(ARM7UTILS)/$(ELFORLINUX)-objdump
+# $(ELFORLINUX)-objdump -d cachetest
+OBJC = $(ARM7UTILS)/bin/$(ELFORLINUX)-objcopy
+
+
+# use arm-linux-gnu-gcc -print-libgcc-file-name
+# to print the file you need
+# /usr/lib/gcc/arm-linux-gnueabi/4.9.1/libgcc.a
+
+LIBGCC    ?= $(ARM7UTILS)/lib/gcc-cross/$(ELFORLINUX)/5
+STDINC    ?=/usr/arm-linux-gnueabi/include
+
+# This is a useful cmd for automating the following: $(CC1) --print-libgcc-file-name
+STDLD     ?=/usr/lib/gcc-cross/arm-linux-gnueabi/5
+
+# Since endianness is same as underlying x86 workstation we put BIGE_ONE as zero.
+IO_ENDIAN_OFFSET=-DBIGE_IONE=0
+
+# The new gcc linker tool is, by default, sorting the order of functions, eg the one called 'main'.
+# The fix is to add to CFLAGS  -fno-reorder-functions   -fno-toplevel-reorder
+
+ARMCFLAGS =
+ifdef USE_THUMB
+ARMCFLAGS += -mthumb
+endif
+
+ifndef USE_THUMB
+ARMCFLAGS += -marm
+endif
+
+ARMCFLAGS += -DARM32 -I$(STDINC) -DM32 -mthumb-interwork -march=armv7-a
+
+ifeq ($(USE_PRLIBC),1)
+
+
+# C FLAGS - for easier to read assembler use -O0 (no optimisation)
+CFLAGS += $(ARMCFLAGS)
+CFLAGS +=  -I$(VHLS)/src/arm -I$(THREADLIB) -I$(TENOS)  -fno-reorder-functions   -fno-toplevel-reorder $(IO_ENDIAN_OFFSET) -DUSE_PRLIBC=1 
+
+LDFLAGS = -Ttext 0x20000  -Tdata $(DATABASE) -Tbss $(BSSBASE)
+LIBS  ?=  prlibc.o archglue.o arm_abi_runtime.o uart64_driver.o __aeabi_read_tp.o 
+LDLIBS = -L$(IMAGES) -larm_aeabi -L$(LIBGCC) -L$(STDLD) -Bstatic -lgcc
+
+
+CRT1=archstart.o
+
+else
+
+CFLAGS = $(ARMCFLAGS)
+#CRT1=arm7_crt.o
+
+# need -lc when using libc instead of prlibc
+#LDLIBS = -L$(LIBGCC) -L$(STDLD)  -lgcc -lc
+#LIBS = archglue.o arm_abi_runtime.o uart64_driver.o 
+
+#$(error ARM32 uClibc bindings currently missing - please set USE_PRLIBC=1 for ARM for now.)
+
+endif
+
+ifdef USE_THUMB
+UCLIBCCRT = $(VHLS)/src/crt/uClibc/arch/arm32/thumb_crt.S
+endif
+
+ifndef USE_THUMB
+UCLIBCCRT = $(VHLS)/src/crt/uClibc/arch/arm32/arm32_crt.S
+endif
+
+
+$(CRT1):$(UCLIBCCRT) 
+	$(AS) -o $@ $<
+
+
+archglue.o: $(PRLIBC)/$(TARCH)/archglue.c
+	$(CC1) -S -o archglue.s  $(CFLAGS) $<
+	$(AS)  -o $@ archglue.s
+
+__aeabi_read_tp.o: $(IMAGES)/__aeabi_read_tp.S
+	$(AS)  -o $@ $<
+
+crt0.o:$(PRLIBC)/crt0.c
+	$(CC1) -o crt0.s  $(CFLAGS) $<
+	$(AS)  -o $@ crt0.s
+
+uart64_driver.o: $(DDRIVERS)/uart64_cbg/uart64_driver.c
+	$(CC1) -o uart64_driver.s  $(CFLAGS) $<
+	$(AS)  -o $@ uart64_driver.s
+
+arm_abi_runtime.o: $(IMAGES)/arm_abi_runtime.c
+	$(CC1) -o arm_abi_runtime.s  $(CFLAGS) $<
+	$(AS)  -o $@ arm_abi_runtime.s
+
+prlibc.o: $(PRLIBC)/prlibc.c
+	$(CC1) -o prlibc.s  $(CFLAGS) $<
+	$(AS)  -o $@ prlibc.s
+
+# cancel internal .c -> .o rule that does not have sufficient dependecies
+%.o: %.c
+
+%.o: %.s
+	$(AS) -o $@ $<
+
+%.s: %.c
+	$(CC1) -o $@ $(CFLAGS)  $<
+
+#eof
+
+

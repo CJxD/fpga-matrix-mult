@@ -1,0 +1,157 @@
+# Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
+#
+# or1k-specific setup - for both prlibc and uClibc.
+#
+TARCH     ?=  OR1K
+
+DDRIVERS  ?=  $(VHLS)/src/devicedrivers
+UCLIBCCRT ?=  $(VHLS)/src/crt/prlibc/or1k/archstart.S
+THREADLIB ?= $(VHLS)/src/crt/djgthreads
+
+# WHAT IS THE DIFFERENCE BETWEEN LIBS AND EXTRA LIBS?
+# EXTRALIBS is to be defined in the image for each Makefile for per-application binaries to be linked in
+#
+LIBS=uart64_driver.o arm_abi_runtime.o
+
+#CROSSBINUTILS  ?=/opt/or1k-toolchain
+#CROSSGCC       ?=/opt/or1k-toolchain
+#ELFORLINUX     ?=or1k-elf
+
+# Last year's Computer Lab Settings:
+#CROSSBINUTILS  ?= /usr/groups/han/clteach/orpsoc/tools/binutils-2013
+#CROSSGCC       ?= /usr/groups/han/clteach/orpsoc/tools/gcc-2013
+#ELFORLINUX     ?=or32-linux
+
+# Computer Lab Settings:
+#CROSSBINUTILS  ?= /usr/groups/han/clteach/or1k-toolchain-mar2014
+#CROSSGCC       ?= /usr/groups/han/clteach/or1k-toolchain-mar2014
+#ELFORLINUX     ?=or1k-elf
+#LIBGCC         ?= $(CROSSBINUTILS)/lib/gcc/$(ELFORLINUX)/4.8.1
+
+# Computer Lab dalham prebuilt settings:
+CROSSBINUTILS  ?= /usr/local/openrisc
+CROSSGCC       ?= $(CROSSBINUTILS)
+CROSSGCCLIB    ?= $(CROSSBINUTILS)/or32-elf/lib
+LIBGCC         ?= $(CROSSBINUTILS)/lib/gcc/$(ELFORLINUX)/4.5.1-or32-1.0rc4
+
+
+
+ELFORLINUX     ?=or32-elf
+
+
+
+
+
+# Memory map (nominal)
+
+export PROGRAM   = 0x0000000..0x18000
+export STACKBASE = 0x0040000  # First stack top, higher cores use work upwards from here
+export DATABASE  = 0x00E0000
+export BSSBASE   = 0x00E8000
+export HEAPBASE  = 0x0100000
+export HEAPEND   = 0x7FF0000
+
+
+
+SIM = $(VHLS)/src/vhls -platform $(VHLS)/src/platform/risc/or1k/.libs/libor1k.so
+
+# single core command
+CMD=LD_LIBRARY_PATH=/usr/local/lib:$(TLM_POWER3):$(LD_LIBRARY_PATH)  time $(SIM) $(DRAM_FLAGS) -cores 1 -tracelevel 1 -coremask 0 -global-qk-ns 1000 -image $(NAME)
+
+
+
+# Toolchain (gcc and binutils) location.
+# C Compiler
+CC = LD_LIBRARY_PATH=$(CROSSGCCLIB) $(CROSSGCC)/bin/$(ELFORLINUX)-gcc
+CC1 = $(CC) -S
+
+# Bintools:
+# Link Editor
+LD = LD_LIBRARY_PATH=$(CROSSGCCLIB) $(CROSSBINUTILS)/bin/$(ELFORLINUX)-ld
+
+# Assembler
+AS = LD_LIBRARY_PATH=$(CROSSGCCLIB) $(CROSSBINUTILS)/bin/$(ELFORLINUX)-as
+
+# Object file decoder (also use readelf -a)
+NM = LD_LIBRARY_PATH=$(CROSSGCCLIB) $(CROSSBINUTILS)/bin/$(ELFORLINUX)-nm
+
+# Object dump - gives a good disassembly/dump file
+OBJD = LD_LIBRARY_PATH=$(CROSSGCCLIB) $(CROSSBINUTILS)/bin/$(ELFORLINUX)-objdump
+OBJC = LD_LIBRARY_PATH=$(CROSSGCCLIB) $(CROSSBINUTILS)/bin/$(ELFORLINUX)-objcopy
+
+# Next one is not used?
+GCCINCLUDES=./orpsoc/binutils12s/or1k-linux/include/c++/4.5.1-or1k-1.0rc1/tr1:
+
+
+STDS      ?= $(CROSSBINUTILS)/$(ELFORLINUX)
+STDINC    ?= $(STDS)/sys-root/usr/include
+STDLD     ?= $(STDS)/sys-root/usr/lib
+
+
+
+SW        ?=$(PRAZOR)/openrisc-sw
+SIMULATOR ?=$(VHLS)/src/vhls -platform $(VHLS)/src/platform/risc/or1k/.libs/libor1k.so
+
+# Need an offset of one (four bytes) to address low order 64-bit I/O words on 32 bit machine.
+IO_ENDIAN_OFFSET=-DBIGE_IONE=1
+
+# The new gcc linker tool is, by default, sorting the order of functions, eg the one called 'main'.
+# The fix is to add to CFLAGS  -fno-reorder-functions   -fno-toplevel-reorder
+
+
+#/ UTILS = $(SOCDAMOR1K)/orpsoc/sw/utils
+
+# This is a useful cmd for automating the following: $(CC1) --print-libgcc-file-name
+# We need these LDLIBS if we are invoking ld directly rather than using gcc to do the linking.
+
+
+ifdef USE_PRLIBC
+
+# C FLAGS - for easier to read assembler use -O0 (no optimisation)
+CFLAGS += -DUSE_VHLS_BACKDOORS -DOR1K -mhard-div -I$(STDINC) -I$(VHLS)/src/or1k -I$(THREADLIB)  -I$(TENOS) -I$(PRLIBC)/or1k -fno-reorder-functions   -fno-toplevel-reorder $(IO_ENDIAN_OFFSET) -DM32 -DUSE_PRLIBC=1 
+LDFLAGS = -Ttext 0x0 -Tdata $(DATABASE) -Tbss $(BSSBASE)  
+
+LDLIBS  ?=  prlibc.o -L$(LIBGCC) -lgcc 
+
+
+LIBS +=archglue.o
+CRT1=archstart.o
+
+else
+
+$(error OR1K uClibc bindings currently missing - please export USE_PRLIBC=1 for or1k for now.)
+
+endif
+
+
+archstart.o:$(PRLIBC)/or1k/archstart.S
+	$(AS) -o $@ $<
+
+
+crt0.o:$(PRLIBC)/crt0.c
+	$(CC1) -S -o crt0.s  $(CFLAGS) $<
+	$(AS)  -o $@ crt0.s
+
+uart64_driver.o: $(DDRIVERS)/uart64_cbg/uart64_driver.c
+	$(CC1) -o uart64_driver.s  $(CFLAGS) $<
+	$(AS)  -o $@ uart64_driver.s
+
+archglue.o: $(PRLIBC)/or1k/archglue.c
+	$(CC1) -S -o archglue.s  $(CFLAGS) $<
+	$(AS)  -o $@ archglue.s
+
+prlibc.o: $(PRLIBC)/prlibc.c
+	$(CC) -c -o $@  $(CFLAGS) $<
+
+# cancel internal .c -> .o rule that does not have sufficient dependecies
+%.o: %.c
+
+%.o: %.s
+	$(AS) -o $@ $<
+
+%.s: %.c
+	$(CC1) -o $@ $(CFLAGS)  $<
+
+#eof
+
+

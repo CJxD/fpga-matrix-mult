@@ -1,0 +1,4 @@
+# Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
+
+#!/bin/sh
+../src/vhls -platform $(VHLS)/src/platform/risc/or1k/.libs/libor1k.so -deviceini ../src/dramsim2/dist/system.ini.example -systemini ../src/dramsim2/dist/ini/DDR3_micron_32M_8B_x4_sg125.ini -image ../images/hello-world/hello -cores 1 -tracelevel 3

@@ -1,0 +1,81 @@
+# Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
+#
+# x86_64 specific setup
+#
+
+
+CC       ?= gcc -O2
+TARCH    ?=  x86_64
+AS       ?= as
+LD       ?= ld
+OBJD     ?= objdump
+
+
+export PROGRAM   = 0x0000000..0x18000
+export STACKBASE = 0x0040000  # First stack top, higher cores use work upwards from here
+export DATABASE  = 0x00E0000
+export BSSBASE   = 0x00E8000
+export HEAPBASE  = 0x0100000
+export HEAPEND   = 0x7FF0000
+
+
+# Need an offset of zero since the underlying machine is always a litte-endian 64 bit machine.
+IO_ENDIAN_OFFSET=-DBIGE_IONE=0
+
+
+# This is a useful cmd for automating the following: $(CC1) --print-libgcc-file-name
+
+ifdef USE_PRLIBC
+# x86 setups for prlibc
+
+
+CFLAGS=-g -fno-builtin -DHEAPBASE=0x0100000 -DHEAPEND=0x7FF0000 -DUSE_VHLS_BACKDOORS  -I$(VHLS)/src/tenos  -I$(VHLS)/src/crt/prlibc -I$(VHLS)/src/crt/prlibc/x86_64  -I$(THREADLIB) -I$(PARMACS_LIB) -I$(PARMACS_NEUTRAL_LIB) -DUSE_DJGTHREAD_CRT -DUSE_PRLIBC=1 -Dx86_64  -fno-stack-protector -fno-reorder-functions   -fno-toplevel-reorder $(IO_ENDIAN_OFFSET)
+
+LDFLAGS=-Ttext 0x0 -Tdata 0xF000 -Tbss 0x18000 -L$(VHLS)/src/crt/uClibc/dist/lib
+
+# If we use -lc tend to get the shared library from /lib64
+LIBS =uart64_driver.o  prlibc.o
+
+CRT1=archstart.o
+
+
+else
+# x86 setups for uClibc
+CFLAGS=-g -DHEAPBASE=0x0100000 -DHEAPEND=0x7FF0000 -DUSE_VHLS_BACKDOORS  -I$(VHLS)/src/tenos -I$(VHLS)/src/crt/prlibc  -I$(THREADLIB) -I$(PARMACS_LIB) -I$(PARMACS_NEUTRAL_LIB) -DUSE_DJGTHREAD_CRT -DUSE_UCLIBC  -Dx86_64 -fno-stack-protector -fno-reorder-functions   -fno-toplevel-reorder $(IO_ENDIAN_OFFSET)
+LDFLAGS=-Ttext 0x0 -Tdata 0xF000 -Tbss 0x18000 -L$(VHLS)/src/crt/uClibc/dist/lib
+# If we use -lc tend to get the shared library from /lib64
+LIBS =uclibc_shim.o uart64_driver.o  $(VHLS)/src/crt/uClibc/dist/lib/libc.a 
+CRT1 = uclibc_crt.o
+endif
+
+
+SIM = $(VHLS)/src/x86/vhls-x86 
+
+
+
+archstart.o: $(CRT)/prlibc/$(TARCH)/archstart.S
+	$(AS) -a -o archstart.o $(CRT)/prlibc/$(TARCH)/archstart.S
+
+uclibc_crt.o: $(CRT)/uClibc/arch/$(TARCH)/uclibc_crt.S
+	$(AS) -a -o uclibc_crt.o $(CRT)/uClibc/arch/$(TARCH)/uclibc_crt.S
+
+prlibc.o: $(CRT)/prlibc/prlibc.c
+	$(CC)  $(CFLAGS) -c  $(CRT)/prlibc/prlibc.c
+
+crt0.o: $(CRT)/prlibc/crt0.c
+	$(CC)  $(CFLAGS) -c $(CRT)/prlibc/crt0.c
+
+
+uart64_driver.o: $(DDRIVERS)/uart64_cbg/uart64_driver.c
+	$(CC) $(CFLAGS) -c $(DDRIVERS)/uart64_cbg/uart64_driver.c
+
+uclibc_shim.o: $(CRT)/uClibc/uclibc_shim.c
+	$(CC) -fno-builtin $(CFLAGS) -c $(CRT)/uClibc/uclibc_shim.c
+
+
+# We leave this out perhaps for uClibc x86 since get clashes with the /usr/include one. Need better to set -I- flag
+# -I$(VHLS)/src/crt/uClibc/include
+
+
+
+#eof
