@@ -15,7 +15,7 @@
 # Undefining the USE_ARM32 flag, that adds, -mthumb-interwork -march=armv7-a -mthumb, will make it work normally.
 
 
-TARCH     ?=  ARM32
+TARCH     ?=ARM32
 
 DDRIVERS  ?= $(VHLS)/src/devicedrivers
 THREADLIB ?= $(VHLS)/src/crt/djgthreads
@@ -25,8 +25,14 @@ IMAGES	  ?= $(VHLS)/images
 # Computer Lab Settings:
 ARM7UTILS     =/usr/bin
 ARM7GCC       =/usr/bin
-#ELFORLINUX    ?=arm-linux-gnu
+ARM7INCLUDE   =/usr
+ARM7LIB       =/usr/lib
+
+ifeq (TARCH,ARM32HF)
+ELFORLINUX   ?=arm-linux-gnueabihf
+else
 ELFORLINUX   ?=arm-linux-gnueabi
+endif
 
 
 # Memory map (nominal)
@@ -70,20 +76,21 @@ NM = $(ARM7UTILS)/$(ELFORLINUX)-nm
 AR = $(ARM7UTILS)/$(ELFORLINUX)-ar
 
 # Object dump - gives a good disassembly/dump file
-OBJD =  $(ARM7UTILS)/$(ELFORLINUX)-objdump
+OBJD = $(ARM7UTILS)/$(ELFORLINUX)-objdump
 # $(ELFORLINUX)-objdump -d cachetest
-OBJC = $(ARM7UTILS)/bin/$(ELFORLINUX)-objcopy
+OBJC = $(ARM7UTILS)/$(ELFORLINUX)-objcopy
 
 
 # use arm-linux-gnu-gcc -print-libgcc-file-name
 # to print the file you need
 # /usr/lib/gcc/arm-linux-gnueabi/4.9.1/libgcc.a
 
-LIBGCC    ?= $(ARM7UTILS)/lib/gcc-cross/$(ELFORLINUX)/5
-STDINC    ?=/usr/arm-linux-gnueabi/include
+# This is a useful cmd for automating the above
+LIBGCC    ?=$(dir $(shell $(CC1) --print-libgcc-file-name))
 
-# This is a useful cmd for automating the following: $(CC1) --print-libgcc-file-name
-STDLD     ?=/usr/lib/gcc-cross/arm-linux-gnueabi/5
+STDINC    ?=$(ARM7INCLUDE)/$(ELFORLINUX)/include
+
+STDLD     ?=$(ARM7LIB)/gcc-cross/arm-linux-gnueabi/5
 
 # Since endianness is same as underlying x86 workstation we put BIGE_ONE as zero.
 IO_ENDIAN_OFFSET=-DBIGE_IONE=0
