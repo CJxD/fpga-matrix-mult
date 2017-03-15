@@ -10,6 +10,7 @@
 
 # Assemblies
 *.s
+*.dis
 
 # Libraries
 *.lib
