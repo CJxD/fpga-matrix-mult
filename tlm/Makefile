@@ -1,18 +1,27 @@
-# (C) 2009-17 DJG: University of Cambridge, SoCDAM.
-# $Id: $  class1 makefile
-#
+LDLIBS=-lsystemc
 
-include Makefile.def
+.PHONY: all run clean-objs clean
+all: matMul
 
-# tlm_core is no longer separately needed since it is folded into the main SystemC release.
+matMul.o: matMul.cpp
+	$(CXX) -std=c++11 $(CXXFLAGS) -c $^ -o $@
 
-CXXFLAGS=-Wno-deprecated -I$(SYSCDIR)/include -I$(SYSCDIR)/include/tlm_core/tlm_2 -std=c++11 -O3
+matMul: matMul.o
+	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
+run: matMul
+	./matMul 0x01020304 0x01000001 1 | tee identity.test.txt
+	./matMul 0x01020304 0x01000001 10000 | tee identity.10000.test.txt
+	./matMul 0x01020304 0x02000002 1 | tee double.test.txt
+	./matMul 0xBA5EBA11 0xBEEFBABE 1 | tee hard.test.txt
+	./matMul 0xBA5EBA11 0xBEEFBABE 10000 | tee hard.10000.test.txt
+	@echo "done"
 
+clean-objs:
+	rm -f *.o
 
-all:
-	g++ $(CXXFLAGS) ex3.cpp $(LDFLAGS)
-	./a.out
+clean: | clean-objs
+	rm -f matMul *.txt
 
 
 

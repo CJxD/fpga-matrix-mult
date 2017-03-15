@@ -31,15 +31,16 @@ using namespace std;
 WIDTH of each matrix element = 8 bits
 write mode
 	addr 0xE0002000 -> write to Mat A
-	addr 0xE0002008 -> wirte to Mat B
+	addr 0xE0002008 -> write to Mat B
 read mode
 	addr 0xE0002010 -> read low 32 bits of res
 	addr 0xE0002018 -> read high 32 bits of res
 */
-#define ADDR1 0x0
-#define ADDR2 ADDR1+8
-#define ADDR3 ADDR2+8
-#define ADDR4 ADDR3+8
+#define MEMBASE 0xE0002000
+#define MATA	0x00
+#define MATB	0x08
+#define RES_LO	0x10
+#define RES_HI	0x18
   
 struct matMul_2x2:
 	public sc_module
@@ -47,50 +48,50 @@ struct matMul_2x2:
   , public pw_module
 #endif
 {
-public:
+	tlm_utils::simple_target_socket<matMul_2x2, BUS_WIDTH, base_types_t> port0;
 
-	tlm_utils::simple_target_socket<matMul_2x2, BUS_WIDTH, base_types_t> port0;	
-  matMul_2x2(sc_module_name name): sc_module(name), port0("port0") 
-  {
-  	port0.register_b_transport(this, &matMul_2x2::b_transact);
-  }
-  
-  u16 res[4] = {0, 0, 0, 0};
-  u32 valA = 0;
-  u32 valB = 0;
-  
+	// Containers for inputs and response
+	u8 matA[4] = {0, 0, 0, 0};
+	u8 matB[4] = {0, 0, 0, 0};
+	u16 res[4] = {0, 0, 0, 0};
+
+	matMul_2x2(sc_module_name name) : sc_module(name), port0("port0")
+	{
+		port0.register_b_transport(this, &matMul_2x2::b_transact);
+	}
+
+	private:
 	void b_transact(payload_t &trans, sc_time &delay) 
-  {
+	{
 		unsigned char *data = trans.get_data_ptr();
 		u64 addr = trans.get_address();
-		int flag = addr & 0xFF;
-		
-		//printf("[dev] addr is %llx\n", addr);
+		int offset = addr ^ MEMBASE;
+
 		if(trans.is_write())
 		{
 			int i, j, k;
 			*(u64*)res = 0;
-			if(flag == ADDR1) valA = *(u32*) &data[0];
-			else if (flag == ADDR2) valB = *(u32*) &data[0];
-			
-			u8* A = (u8*)&valA;
-			u8* B = (u8*)&valB;
+
+			if (offset == MATA)
+				*(u32*)matA = *(u32*) &data[0];
+			else if (offset == MATB)
+				*(u32*)matB = *(u32*) &data[0];
+
 			for(i=0;i<2;i++)
-		  	for(j=0;j<2;j++) 
-		      for(k=0;k<2;k++) 
-		      	 res[i*2+j] +=  A[i*2+k] * B[k*2+j];
+				for(j=0;j<2;j++)
+					for(k=0;k<2;k++)
+						res[i*2+j] += matA[i*2+k] * matB[k*2+j];
 		}
 		else
 		{
-			if(flag == ADDR3) *(u32*)&data[0] = *(u32*) &res[0];
-			else if(flag == ADDR4) *(u32*)&data[0] = *(u32*) &res[2];
+			if (offset == RES_LO)
+				*(u32*)&data[0] = *(u32*) &res[0];
+			else if(offset == RES_HI)
+				*(u32*)&data[0] = *(u32*) &res[2];
 		}
-       
-   	//printf("[dev] data is 0x%08x\n", *(u32*) data);
-	  trans.set_response_status( tlm::TLM_OK_RESPONSE);
-  }
-  
 
+		trans.set_response_status(tlm::TLM_OK_RESPONSE);
+	}
 };
 
 
