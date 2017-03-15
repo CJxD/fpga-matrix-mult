@@ -1,6 +1,7 @@
 /* C code to run on Prazor after plugging in the device */
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #define WRITE_BASE 0xE0002000
 #define READ_BASE 0xE0002010
@@ -12,29 +13,30 @@
 
 int main(int argc, char* argv[])
 {
-	u32 iters = 1;
+	printf("\n\n");
+	u32 i, iters = 1;
 	u32 matA, matB;
+	u32 hRes, lRes;
 
-	if (argc < 2 || argc > 3)
+	if (argc < 3 || argc > 5)
 	{
-		fprintf(stderr, "Usage: matMul <matrixA> <matrixB> [iterations]\n");
+		fprintf(stderr, "Usage: matMul <matrixA> <matrixB> [iterations]\n\n\n");
 		return 1;
 	}
 
-	if (argc == 3)
+	if (argc == 4)
 	{
-		iters = argv[3];
+		iters = strtoul(argv[3], NULL, 10);
 	}
 
-	sscanf(argv[1], "%x", &matA);
-	sscanf(argv[2], "%x", &matB);
+	matA = strtoul(argv[1], NULL, 16);
+	matB = strtoul(argv[2], NULL, 16);
 
-	u32 hRes, lRes;
-	u32 i;
-
+	printf("input = 0x%08x 0x%08x\n", matA, matB);
 	printf("matrix A:\n%d %d\n%d %d\n", matA & 0xFF, matA>>8 & 0xFF, matA>>16 & 0xFF, matA>>24 & 0xFF); 
-	printf("matrix B:\n%d %d\n%d %d\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF); 
+	printf("matrix B:\n%d %d\n%d %d\n\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF);
 
+	printf("iterations: %lu\n", iters); 
 	for(i=0; i<iters; i++)
 	{
 		WRITE(0, matA);

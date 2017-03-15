@@ -22,8 +22,12 @@ matMul.dis: matMul
 	$(OBJD) -d $< > $@
 
 run: matMul
-	$(CMD) -image ./matMul -name identity.test -- 0x01020304 0x01000001 1 | tee identity.test.output
-	@echo "Simulation completed successfully"
+	$(CMD) -image ./matMul -name identity.test		-- 0x01020304 0x01000001 1
+	$(CMD) -image ./matMul -name identity.10k.test	-- 0x01020304 0x01000001 10000
+	$(CMD) -image ./matMul -name double.test		-- 0x01020304 0x02000002 1
+	$(CMD) -image ./matMul -name hard.test			-- 0xBA5EBA11 0xBEEFBABE 1
+	$(CMD) -image ./matMul -name hard.10k.test		-- 0xBA5EBA11 0xBEEFBABE 10000
+	@echo "done"
 
 clean:
 	rm -f matMul *.o *.s *.test* *.txt *.dis *.vcd
