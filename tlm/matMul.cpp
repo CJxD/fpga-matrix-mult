@@ -34,11 +34,6 @@ SC_MODULE(matMul)
 		u32* val = (u32*) &data[0];
 		u32 hRes = 0, lRes = 0;
 
-		printf("input = 0x%08x 0x%08x\n", matA, matB);
-		printf("matrix A:\n%d %d\n%d %d\n", matA & 0xFF, matA>>8 & 0xFF, matA>>16 & 0xFF, matA>>24 & 0xFF); 
-		printf("matrix B:\n%d %d\n%d %d\n\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF); 
-	
-		printf("iterations: %u\n", iters);
 		u32 i;
 		sc_core::sc_time d;
 
@@ -87,6 +82,12 @@ int sc_main(int argc, char *argv[])
 
 	matA = strtoul(argv[1], NULL, 16);
 	matB = strtoul(argv[2], NULL, 16);
+	
+	printf("input = 0x%08x 0x%08x\n", matA, matB);
+	printf("matrix A:\n%d %d\n%d %d\n", matA & 0xFF, matA>>8 & 0xFF, matA>>16 & 0xFF, matA>>24 & 0xFF); 
+	printf("matrix B:\n%d %d\n%d %d\n\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF); 
+
+	printf("iterations: %u\n", iters);
 
 	matMul testbed("testbed");
 	testbed.matA = matA;
