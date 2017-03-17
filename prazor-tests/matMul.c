@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define u32 unsigned int
+#define u64 unsigned long long
+
 #include "zynq_utils.h"
 
 #define MEM_BASE 0xE0002000
@@ -18,9 +21,6 @@
 #define init(argc, argv) bm_init(argc, argv)
 #define deinit() bm_deinit()
 #endif
-
-#define u64 unsigned long long
-#define u32 unsigned int
 
 u32 matA, matB, iters;
 u32 lRes, hRes;
