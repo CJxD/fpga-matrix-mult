@@ -41,20 +41,20 @@ SC_MODULE(matMul)
 		{
 			*val = matA;
 			p->set_write();
-			p->set_address(MEMBASE + MATA);
+			p->set_address(MEM_BASE + MATA);
 			socket->b_transport(*p, d);
 
 			*val = matB;
-			p->set_address(MEMBASE + MATB);
+			p->set_address(MEM_BASE + MATB);
 			socket->b_transport(*p, d); 
 
 			p->set_read();
-			p->set_address(MEMBASE + RES_LO);
+			p->set_address(MEM_BASE + RES_LO);
 			socket->b_transport(*p, d); 
 			lRes = *val;
 
 			p->set_read();
-			p->set_address(MEMBASE + RES_HI);
+			p->set_address(MEM_BASE + RES_HI);
 			socket->b_transport(*p, d); 
 			hRes = *val;
 		}

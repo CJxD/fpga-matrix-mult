@@ -5,7 +5,7 @@ all: matMul matMul.dis
 
 include $(VHLS)/images/Makefile.inc
 
-CFLAGS+= -std=c99
+CFLAGS+= -O0 -std=c99
 EXTRALIBS+= dummy_isr.o
 
 # one core command line
@@ -13,7 +13,7 @@ CMD=$(SIM) $(DRAM_FLAGS) -self-starting-cores 1 -global-qk-ns 100000 -vcd-power-
 
 ifeq ($(USE_ENERGYSHIM),1)
 
-CFLAGS+= -DUSE_ENERGYSHIM -I$(VHLS)/images
+CFLAGS+= -DUSE_ENERGYSHIM
 ifeq ($(NATIVE),1)
 CFLAGS+= -DNATIVE
 SHIMMETHOD=-DGET_ENERGY_FROM_PROBE

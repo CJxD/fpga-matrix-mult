@@ -31,16 +31,16 @@ using namespace std;
 WIDTH of each matrix element = 8 bits
 write mode
 	addr 0xE0002000 -> write to Mat A
-	addr 0xE0002008 -> write to Mat B
+	addr 0xE0002004 -> write to Mat B
 read mode
-	addr 0xE0002010 -> read low 32 bits of res
-	addr 0xE0002018 -> read high 32 bits of res
+	addr 0xE0002008 -> read low 32 bits of res
+	addr 0xE000200C -> read high 32 bits of res
 */
-#define MEMBASE 0xE0002000
+#define MEM_BASE 0xE0002000
 #define MATA	0x00
-#define MATB	0x08
-#define RES_LO	0x10
-#define RES_HI	0x18
+#define MATB	0x04
+#define RES_LO	0x08
+#define RES_HI	0x0C
   
 struct matMul_2x2:
 	public sc_module
@@ -65,7 +65,7 @@ struct matMul_2x2:
 	{
 		unsigned char *data = trans.get_data_ptr();
 		u64 addr = trans.get_address();
-		int offset = addr ^ MEMBASE;
+		int offset = addr ^ MEM_BASE;
 
 		if(trans.is_write())
 		{
