@@ -28,7 +28,7 @@
 
 u32 matA, matB, iters;
 u32 lRes, hRes;
-void* mem_base;
+ptr_t mem_base;
 
 int init(int argc, const char* argv[])
 {
@@ -50,7 +50,7 @@ int init(int argc, const char* argv[])
 	matA = strtoul(argv[1], NULL, 16);
 	matB = strtoul(argv[2], NULL, 16);
 	
-	mem_base = (void *) MEM_BASE;
+	mem_base = MEM_BASE;
 
 	if (mem_base <= 0)
 		return 1;
