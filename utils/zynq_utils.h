@@ -78,14 +78,18 @@ static void zynq_enable_interrupts()
 
 static void zynq_enable_caches()
 {
+#if defined(__arm__) || defined(__thumb__)
 	// L1 Cache (see Zynq TRM for further details)
 	__asm__("mov r0, #0x1000");
 	__asm__("orr r0, r0, #4");
 	__asm__("mcr p15, 0, r0, c1, c0, 0");
-	
+
 	// L2 Cache
 	off_t l2target = 0xF8F02100;
 	((unsigned long *) l2target)[0] = 1;
+#else
+	#warning skipping ARM/THUMB cache control code
+#endif
 }
 
 #endif

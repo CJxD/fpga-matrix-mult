@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
-#define u32 unsigned int
-#define u64 unsigned long long
+#define u8 uint8_t
+#define u16 uint16_t
+#define u32 uint32_t
+#define u64 uint64_t
+#define ptr_t uintptr_t
 
 #include "zynq_utils.h"
 
@@ -76,6 +80,7 @@ int init(int argc, const char* argv[])
 	printf("matrix B:\n%d %d\n%d %d\n\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF);
 
 	printf("iterations: %u\n", iters);
+	return 0;
 }
 
 int deinit()

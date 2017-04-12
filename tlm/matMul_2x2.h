@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <iostream>
-#include <bitset>
+#include <stdint.h>
+
 #include <systemc.h>
 #include <tlm.h>
 #include <tlm_utils/simple_target_socket.h>
@@ -21,10 +21,11 @@ typedef tlm::tlm_base_protocol_types base_types_t;
 typedef tlm::tlm_generic_payload payload_t;
 #endif
 
-#define u64 unsigned long long
-#define u16 uint16_t
 #define u8 uint8_t
-#define u32 unsigned int
+#define u16 uint16_t
+#define u32 uint32_t
+#define u64 uint64_t
+#define ptr_t uintptr_t
 
 using namespace std;
 /*
@@ -63,9 +64,9 @@ struct matMul_2x2:
 	private:
 	void b_transact(payload_t &trans, sc_time &delay) 
 	{
-		unsigned char *data = trans.get_data_ptr();
+		u8* data = trans.get_data_ptr();
 		u64 addr = trans.get_address();
-		int offset = addr ^ MEM_BASE;
+		ptr_t offset = addr ^ MEM_BASE;
 
 		if(trans.is_write())
 		{
