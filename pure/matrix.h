@@ -1,70 +1,24 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
-typedef int mat_t;
+u32 _data[4];
+u8* _matA = (u8*) &_data[0];
+u8* _matB = (u8*) &_data[1];
+u8* _lRes = (u8*) &_data[2];
+u8* _hRes = (u8*) &_data[3];
 
-typedef struct
+inline matrix_multiply()
 {
-	mat_t* M;
-	int width, height;
+	u16 _res[4] = {0, 0, 0, 0};
 
-	void fill()
-	{
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				M[i*width + j] = i*width + j;
-			}
-		}
-	}
-	
-	void print()
-	{
-		for (int i = 0; i < height; i++)
-		{
-			for (int j = 0; j < width; j++)
-			{
-				printf("%d ", M[i*width + j]);
-			}
-			printf("\n");
-		}
-		printf("\n");
-	}
-} Matrix;
+	unsigned char i, j, k;
+	for(i=0;i<2;i++)
+		for(j=0;j<2;j++)
+			for(k=0;k<2;k++)
+				_res[i*2+j] += _matA[i*2+k] * _matB[k*2+j];
 
-inline Matrix matrix_create(int height, int width)
-{
-	Matrix m;
-	m.height = height;
-	m.width = width;
-	m.M = (mat_t*) malloc(sizeof(mat_t) * height * width);
-	return m;
-}
-
-inline void matrix_destroy(Matrix &M)
-{
-	free(M.M);
-}
-
-inline Matrix matrix_multiply(const Matrix& MA, const Matrix& MB)
-{
-	Matrix MO = matrix_create(MA.height, MB.width);
-	
-	for (int i = 0; i < MA.height; i++)
-	{
-		for (int j = 0; j < MB.width; j++)
-		{
-			int res = 0;
-			for (int k = 0; k < MA.width; k++)
-			{
-				res += MA.M[i*MA.width + k] * MB.M[k*MB.width + j];
-			}
-			MO.M[i*MB.width + j] = res;
-		}
-	}
-	
-	return MO;
+	*(u32*) _lRes = *(u32*) &_res[0];
+	*(u32*) _hRes = *(u32*) &_res[2];
 }
 
 #endif

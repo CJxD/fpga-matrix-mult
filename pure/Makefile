@@ -1,10 +1,12 @@
-.PHONY: all
+.PHONY: all clean
 
-CC?=gcc
+all: matMul
 
-OPTFLAGS?=-O0
-CFLAGS+=-std=c++11 $(OPTFLAGS)
-LDFLAGS+=-lstdc++
+matMul.o: matMul_cpu.c	
+	$(CC) $(CFLAGS) -c $< -o $@
 
-all:
-	$(CC) $(CFLAGS) main.cpp $(LDFLAGS)
+matMul: matMul.o
+	$(CC) $(LDFLAGS) $< -o $@
+
+clean:
+	-rm *.o matMul
