@@ -1,3 +1,3 @@
-#include "matMul_2x2.h"
+#include "matMul_chained.h"
 
 typedef PLUGIN_MODULE plugin_t;

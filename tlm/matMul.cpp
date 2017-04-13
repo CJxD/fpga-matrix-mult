@@ -5,15 +5,15 @@
 #include <tlm.h>
 #include <tlm_utils/simple_initiator_socket.h>
 
-#include "matMul_2x2.h"
+#include "matMul_chained.h"
 
 SC_MODULE(matMul)
 {
 	tlm_utils::simple_initiator_socket<matMul, BUS_WIDTH, base_types_t> socket;
-	u32 matA, matB;
+	u32 mat;
 	u32 iters;
 
-	SC_CTOR(matMul) : socket("socket"), matA(0), matB(0), iters(1)
+	SC_CTOR(matMul) : socket("socket"), mat(0), iters(1)
 	{
 		SC_THREAD(run);
 	}
@@ -33,69 +33,57 @@ SC_MODULE(matMul)
 		p->set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
 		 
 		u32* val = (u32*) &data[0];
-		u32 hRes = 0, lRes = 0;
+		u32 res = 0;
 
 		u32 i;
 		sc_core::sc_time d;
-
+		
 		for (i=0; i<iters; i++)
 		{
-			*val = matA;
+			*val = mat;
 			p->set_write();
-			p->set_address(MEM_BASE + MATA);
+			p->set_address(MEM_BASE + MAT);
 			socket->b_transport(*p, d);
 
-			*val = matB;
-			p->set_address(MEM_BASE + MATB);
-			socket->b_transport(*p, d); 
-
 			p->set_read();
-			p->set_address(MEM_BASE + RES_LO);
+			p->set_address(MEM_BASE + RES);
 			socket->b_transport(*p, d); 
-			lRes = *val;
-
-			p->set_read();
-			p->set_address(MEM_BASE + RES_HI);
-			socket->b_transport(*p, d); 
-			hRes = *val;
+			res = *val;
 		}
 	
-		printf("res = 0x%08x 0x%08x\n", hRes, lRes);
-		printf("matrix form:\n%d %d\n%d %d\n", lRes & 0xFFFF, lRes>>16 & 0xFFFF, hRes & 0xFFFF, hRes>>16 & 0xFFFF); 
+		printf("res = 0x%08x\n", res);
+		printf("matrix form:\n%d %d\n%d %d\n", res & 0xFF, res>>8 & 0xFF, res>>16 & 0xFF, res>>24 & 0xFF); 
 	}
 };
 
 int sc_main(int argc, char *argv[])
 {
 	u32 i, iters = 1;
-	u32 matA, matB;
+	u32 mat;
 
-	if (argc < 3 || argc > 5)
+	if (argc < 2 || argc > 4)
 	{
-		fprintf(stderr, "Usage: matMul <matrixA> <matrixB> [iterations]\n\n");
+		fprintf(stderr, "Usage: matMul <matrixA> [iterations]\n\n");
 		return 1;
 	}
 
-	if (argc == 4)
+	if (argc == 3)
 	{
-		iters = strtoul(argv[3], NULL, 10);
+		iters = strtoul(argv[2], NULL, 10);
 	}
 
-	matA = strtoul(argv[1], NULL, 16);
-	matB = strtoul(argv[2], NULL, 16);
+	mat = strtoul(argv[1], NULL, 16);
 	
-	printf("input = 0x%08x 0x%08x\n", matA, matB);
-	printf("matrix A:\n%d %d\n%d %d\n", matA & 0xFF, matA>>8 & 0xFF, matA>>16 & 0xFF, matA>>24 & 0xFF); 
-	printf("matrix B:\n%d %d\n%d %d\n\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF); 
+	printf("input = 0x%08x\n", mat);
+	printf("matrix form:\n%d %d\n%d %d\n", mat & 0xFF, mat>>8 & 0xFF, mat>>16 & 0xFF, mat>>24 & 0xFF); 
 
 	printf("iterations: %u\n", iters);
 
 	matMul testbed("testbed");
-	testbed.matA = matA;
-	testbed.matB = matB;
+	testbed.mat = mat;
 	testbed.iters = iters;
 
-	matMul_2x2 device("matMul_2x2");
+	matMul_chained device("matMul_chained");
 	testbed.socket.bind(device.port0);
 
 	sc_start();
