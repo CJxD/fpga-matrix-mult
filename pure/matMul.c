@@ -8,8 +8,9 @@
 #define u64 uint64_t
 #define ptr_t uintptr_t
 
-#include "matrix.h"
 #include "zynq_utils.h"
+#include "matrix.h"
+void matrix_multiply();
 
 #define MEM_BASE ((ptr_t) _data)
 #define MATA	(ptr_t) _matA - MEM_BASE

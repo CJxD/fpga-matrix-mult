@@ -7,7 +7,7 @@ u8* _matB = (u8*) &_data[1];
 u8* _lRes = (u8*) &_data[2];
 u8* _hRes = (u8*) &_data[3];
 
-inline matrix_multiply()
+inline void matrix_multiply()
 {
 	u16 _res[4] = {0, 0, 0, 0};
 
