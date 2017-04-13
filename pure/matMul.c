@@ -13,10 +13,8 @@
 void matrix_multiply();
 
 #define MEM_BASE ((ptr_t) _data)
-#define MATA	(ptr_t) _matA - MEM_BASE
-#define MATB	(ptr_t) _matB - MEM_BASE
-#define RES_LO	(ptr_t) _lRes - MEM_BASE
-#define RES_HI	(ptr_t) _hRes - MEM_BASE
+#define MAT	(ptr_t) _mat - MEM_BASE
+#define RES	(ptr_t) _res - MEM_BASE
 
 #define WRITE(offset, x) (*((u32*)(mem_base+offset)) = x);(matrix_multiply())
 #define READ(offset) (*((u32*)(mem_base+offset)))
@@ -28,29 +26,28 @@ void matrix_multiply();
 #define deinit() bm_deinit()
 #endif
 
-u32 matA, matB, iters;
-u32 lRes, hRes;
+u32 mat, iters;
+u32 res;
 ptr_t mem_base;
 
 int init(int argc, const char* argv[])
 {
-	if (argc < 3 || argc > 5)
+	if (argc < 2 || argc > 4)
 	{
-		fprintf(stderr, "Usage: matMul <matrixA> <matrixB> [iterations]\n\n\n");
+		fprintf(stderr, "Usage: matMul <matrix> [iterations]\n\n\n");
 		return 1;
 	}
 
-	if (argc == 4)
+	if (argc == 3)
 	{
-		iters = strtoul(argv[3], NULL, 10);
+		iters = strtoul(argv[2], NULL, 10);
 	}
 	else
 	{
 		iters = 1;
 	}
 
-	matA = strtoul(argv[1], NULL, 16);
-	matB = strtoul(argv[2], NULL, 16);
+	mat = strtoul(argv[1], NULL, 16);
 
 	mem_base = MEM_BASE;
 
@@ -58,12 +55,11 @@ int init(int argc, const char* argv[])
 		return 1;
 
 	printf("Waiting for last results to clear...\n");
-	WRITE(MATA, 0);
-	WRITE(MATB, 0);
+	WRITE(MAT, 0);
 
 	u32 res;
 	do {
-		res = READ(RES_LO) + READ(RES_HI);
+		res = READ(RES);
 	} while (res != 0);
 
 #if !defined(USE_ENERGYSHIM) && !defined(__linux__)
@@ -77,9 +73,8 @@ int init(int argc, const char* argv[])
 #endif
 
 	printf("\n");
-	printf("input = 0x%08x 0x%08x\n", matA, matB);
-	printf("matrix A:\n%d %d\n%d %d\n", matA & 0xFF, matA>>8 & 0xFF, matA>>16 & 0xFF, matA>>24 & 0xFF); 
-	printf("matrix B:\n%d %d\n%d %d\n\n", matB & 0xFF, matB>>8 & 0xFF, matB>>16 & 0xFF, matB>>24 & 0xFF);
+	printf("input = 0x%08x\n", mat);
+	printf("matrix:\n%d %d\n%d %d\n", mat & 0xFF, mat>>8 & 0xFF, mat>>16 & 0xFF, mat>>24 & 0xFF); 
 
 	printf("iterations: %u\n", iters);
 	return 0;
@@ -87,8 +82,8 @@ int init(int argc, const char* argv[])
 
 int deinit()
 {
-	printf("res = 0x%08x 0x%08x\n", hRes, lRes);
-	printf("res in matrix form:\n%d %d\n%d %d\n", lRes & 0xFFFF, lRes>>16 & 0xFFFF, hRes & 0xFFFF, hRes>>16 & 0xFFFF);
+	printf("res = 0x%08x\n", res);
+	printf("res in matrix form:\n%d %d\n%d %d\n", res & 0xFF, res>>8 & 0xFF, res>>16 & 0xFF, res>>24 & 0xFF); 
 	printf("\n");
 
 #if defined(__linux__) && defined(FUCK_WITH_INTERRUPTS)
@@ -111,10 +106,8 @@ int main(int argc, const char* argv[])
 	u32 i;
 	for(i=0; i<iters; i++)
 	{
-		WRITE(MATA, matA);
-		WRITE(MATB, matB);		
-		lRes = READ(RES_LO);
-		hRes = READ(RES_HI);
+		WRITE(MAT, mat);	
+		res = READ(RES);
 	}
 
 #ifndef USE_ENERGYSHIM
