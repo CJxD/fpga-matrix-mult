@@ -10,6 +10,8 @@
 
 #include "zynq_utils.h"
 #include "matrix.h"
+void matMul(u8*,u8*,u8*);
+void matAdd(u8*,u8*,u8*);
 void matrix_multiply();
 
 #define MEM_BASE ((ptr_t) _data)
@@ -53,14 +55,6 @@ int init(int argc, const char* argv[])
 
 	if (mem_base <= 0)
 		return 1;
-
-	printf("Waiting for last results to clear...\n");
-	WRITE(MAT, 0);
-
-	u32 res;
-	do {
-		res = READ(RES);
-	} while (res != 0);
 
 #if !defined(USE_ENERGYSHIM) && !defined(__linux__)
 	printf("Turning on L1 and L2 caches\n");
