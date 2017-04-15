@@ -32,29 +32,28 @@ using namespace std;
 #define MEM_BASE 0xE0002000
 #define MAT	0x00
 #define RES	0x04
-  
+	
 struct matMul_chained:
 	public sc_module
 #ifdef TLM_POWER3
-  , public pw_module
+	, public pw_module
 #endif
 {
 	tlm_utils::simple_target_socket<matMul_chained, BUS_WIDTH, base_types_t> port0;
 
 	// Containers for inputs and response
 	u8 res[4] = {0, 0, 0, 0};
-  u32 mat = 0;
-  u32 valB = 0;
-  
-  u8 B[4] = {1,0,0,1};
-  u8 C[4] = {1,1,1,1};
+	u32 mat = 0;
+	
+	u8 B[4] = {1,0,0,1};
+	u8 C[4] = {1,1,1,1};
 	u8 D[4] = {1,0,0,1};
-  
-  matMul_chained(sc_module_name name) : sc_module(name), port0("port0")
+	
+	matMul_chained(sc_module_name name) : sc_module(name), port0("port0")
 	{
 		port0.register_b_transport(this, &matMul_chained::b_transact);
 	}
-  
+	
 	void matMul(u8* MA, u8* MB, u8* MO)
 	{
 		for (int i = 0; i < 2; i++)
@@ -112,7 +111,7 @@ struct matMul_chained:
 			if(flag == RES) *(u32*)&data[0] = *(u32*) &res[0];
 		}
 		
-	  trans.set_response_status( tlm::TLM_OK_RESPONSE);
+		trans.set_response_status( tlm::TLM_OK_RESPONSE);
 	}
 };
 
