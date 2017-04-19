@@ -14,16 +14,21 @@ CMD=$(SIM) $(DRAM_FLAGS) -self-starting-cores 1 -global-qk-ns 100000 -vcd-power-
 ifeq ($(USE_ENERGYSHIM),1)
 
 CFLAGS+= -DUSE_ENERGYSHIM
+EXTRALIBS+= energyshim.o
+
 ifeq ($(NATIVE),1)
 CFLAGS+= -DNATIVE
 SHIMMETHOD=-DGET_ENERGY_FROM_PROBE
+EXTRALIBS+= currentprobe-client.o
 else
 SHIMMETHOD=-DUSE_SPEEDO -DUSE_VHLS_BACKDOORS
 endif
 
-EXTRALIBS+= energyshim.o
-energyshim.o: $(VHLS)/images/energyshim.c
-	$(CC) $(SHIMMETHOD) -I$(VHLS)/src/tenos -c $^ -o $@
+energyshim.o: energyshim.c
+	$(CC) $(CFLAGS) $(SHIMMETHOD) -c $^ -o $@
+
+currentprobe-client.o: currentprobe-client.c
+	$(CC) $(CFLAGS) -c $^ -o $@
 	
 endif
 
@@ -38,13 +43,11 @@ matMul.dis: matMul
 
 run: matMul
 ifeq ($(USE_ENERGYSHIM),1)
-	$(CMD) -image ./matMul -name identity.test	-- l=10000 -- 0x01020304 0x01000001
-	$(CMD) -image ./matMul -name double.test	-- l=10000 -- 0x01020304 0x02000002
-	$(CMD) -image ./matMul -name hard.test		-- l=10000 -- 0xBA5EBA11 0xBEEFBABE
+	$(CMD) -image ./matMul -name identity.test	-- l=10000 -- 0x01000001
+	$(CMD) -image ./matMul -name hard.test		-- l=10000 -- 0xBEEFBABE
 else
-	$(CMD) -image ./matMul -name identity.test	-- 0x01020304 0x01000001 10000
-	$(CMD) -image ./matMul -name double.test	-- 0x01020304 0x02000002 10000
-	$(CMD) -image ./matMul -name hard.test		-- 0xBA5EBA11 0xBEEFBABE 10000
+	$(CMD) -image ./matMul -name identity.test	-- 0x01000001 10000
+	$(CMD) -image ./matMul -name hard.test		-- 0xBEEFBABE 10000
 endif
 	@echo "done"
 
@@ -53,4 +56,3 @@ clean-objs:
 
 clean: | clean-objs
 	rm -f matMul *.test* *.txt *.vcd
-
