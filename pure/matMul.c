@@ -14,13 +14,20 @@ void matMul(u8*,u8*,u8*);
 void matAdd(u8*,u8*,u8*);
 void matrix_multiply();
 
+// Memory pointers
 #define MEM_BASE ((ptr_t) _data)
 #define MAT	(ptr_t) _mat - MEM_BASE
 #define RES	(ptr_t) _res - MEM_BASE
 
+// Disable page mapping
+#define map_page(addr) addr
+#define unmap_page(addr)
+
+// Define write and read commands
 #define WRITE(offset, x) (*((u32*)(mem_base+offset)) = x);(matrix_multiply())
 #define READ(offset) (*((u32*)(mem_base+offset)))
 
+// Energyshim entry points
 #ifdef USE_ENERGYSHIM
 #include "energyshim.h"
 #define main(argc, argv) bm_main(argc, argv)
@@ -51,7 +58,8 @@ int init(int argc, const char* argv[])
 
 	mat = strtoul(argv[1], NULL, 16);
 
-	mem_base = MEM_BASE;
+	printf("Mapping memory\n");
+	mem_base = (ptr_t) map_page(MEM_BASE);
 
 	if (mem_base <= 0)
 		return 1;
@@ -84,6 +92,9 @@ int deinit()
 	printf("Turning on interrupts\n");
 	zynq_enable_interrupts();
 #endif
+
+	printf("Unmapping memory\n");
+	unmap_page((void*) mem_base);
 
 	printf("\n");	
 	return 0;
