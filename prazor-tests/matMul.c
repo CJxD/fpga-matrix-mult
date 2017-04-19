@@ -10,15 +10,22 @@
 
 #include "zynq_utils.h"
 
+// Memory pointers
 #define MEM_BASE 0xE0002000
 #define MATA	0x00
 #define MATB	0x04
 #define RES_LO	0x08
 #define RES_HI	0x0C
 
+// Disable page mapping
+#define map_page(addr) addr
+#define unmap_page(addr)
+
+// Define write and read commands
 #define WRITE(offset, x) (*((u32*)(mem_base+offset)) = x)
 #define READ(offset) (*((u32*)(mem_base+offset)))
 
+// Energyshim entry points
 #ifdef USE_ENERGYSHIM
 #include "energyshim.h"
 #define main(argc, argv) bm_main(argc, argv)
@@ -49,8 +56,9 @@ int init(int argc, const char* argv[])
 
 	matA = strtoul(argv[1], NULL, 16);
 	matB = strtoul(argv[2], NULL, 16);
-	
-	mem_base = MEM_BASE;
+
+	printf("Mapping memory\n");
+	mem_base = (ptr_t) map_page(MEM_BASE);
 
 	if (mem_base <= 0)
 		return 1;
@@ -94,6 +102,9 @@ int deinit()
 	zynq_enable_interrupts();
 #endif
 
+	printf("Unmapping memory\n");
+	unmap_page((void*) mem_base);
+
 	printf("\n");	
 	return 0;
 }
@@ -120,3 +131,4 @@ int main(int argc, const char* argv[])
 	return rc;
 #endif
 }
+

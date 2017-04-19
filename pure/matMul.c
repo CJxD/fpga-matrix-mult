@@ -12,15 +12,22 @@
 #include "matrix.h"
 void matrix_multiply();
 
+// Memory pointers
 #define MEM_BASE ((ptr_t) _data)
 #define MATA	(ptr_t) _matA - MEM_BASE
 #define MATB	(ptr_t) _matB - MEM_BASE
 #define RES_LO	(ptr_t) _lRes - MEM_BASE
 #define RES_HI	(ptr_t) _hRes - MEM_BASE
 
+// Disable page mapping
+#define map_page(addr) addr
+#define unmap_page(addr)
+
+// Define write and read commands
 #define WRITE(offset, x) (*((u32*)(mem_base+offset)) = x);(matrix_multiply())
 #define READ(offset) (*((u32*)(mem_base+offset)))
 
+// Energyshim entry points
 #ifdef USE_ENERGYSHIM
 #include "energyshim.h"
 #define main(argc, argv) bm_main(argc, argv)
@@ -52,7 +59,8 @@ int init(int argc, const char* argv[])
 	matA = strtoul(argv[1], NULL, 16);
 	matB = strtoul(argv[2], NULL, 16);
 
-	mem_base = MEM_BASE;
+	printf("Mapping memory\n");
+	mem_base = (ptr_t) map_page(MEM_BASE);
 
 	if (mem_base <= 0)
 		return 1;
@@ -95,6 +103,9 @@ int deinit()
 	printf("Turning on interrupts\n");
 	zynq_enable_interrupts();
 #endif
+
+	printf("Unmapping memory\n");
+	unmap_page((void*) mem_base);
 
 	printf("\n");	
 	return 0;
