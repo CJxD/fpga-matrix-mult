@@ -3,20 +3,23 @@ all: matMul matMul.dis
 
 OBJD?=objdump
 
-CFLAGS+= -std=c99
+CFLAGS+= -O0 -std=c99
 LDLIBS= -lc
+
+CMD=./matMul
+CFLAGS+= -DNATIVE
 
 ifeq ($(USE_ENERGYSHIM),1)
 
-CFLAGS+= -DUSE_ENERGYSHIM -DNATIVE
-SHIMMETHOD=-DNATIVE -DGET_ENERGY_FROM_PROBE
+CFLAGS+= -DUSE_ENERGYSHIM
+SHIMMETHOD=-DGET_ENERGY_FROM_PROBE
 
 EXTRALIBS+= energyshim.o currentprobe-client.o
 energyshim.o: energyshim.c
-	$(CC) $(SHIMMETHOD) -c $^ -o $@
+	$(CC) $(CFLAGS) $(SHIMMETHOD) -c $^ -o $@
 
 currentprobe-client.o: currentprobe-client.c
-	$(CC) -c $^ -o $@	
+	$(CC) $(CFLAGS) -c $^ -o $@
 
 endif
 

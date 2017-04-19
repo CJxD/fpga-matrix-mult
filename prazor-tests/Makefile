@@ -14,16 +14,21 @@ CMD=$(SIM) $(DRAM_FLAGS) -self-starting-cores 1 -global-qk-ns 100000 -vcd-power-
 ifeq ($(USE_ENERGYSHIM),1)
 
 CFLAGS+= -DUSE_ENERGYSHIM
+EXTRALIBS+= energyshim.o
+
 ifeq ($(NATIVE),1)
 CFLAGS+= -DNATIVE
 SHIMMETHOD=-DGET_ENERGY_FROM_PROBE
+EXTRALIBS+= currentprobe-client.o
 else
 SHIMMETHOD=-DUSE_SPEEDO -DUSE_VHLS_BACKDOORS
 endif
 
-EXTRALIBS+= energyshim.o
-energyshim.o: $(VHLS)/images/energyshim.c
-	$(CC) $(SHIMMETHOD) -I$(VHLS)/src/tenos -c $^ -o $@
+energyshim.o: energyshim.c
+	$(CC) $(CFLAGS) $(SHIMMETHOD) -c $^ -o $@
+
+currentprobe-client.o: currentprobe-client.c
+	$(CC) $(CFLAGS) -c $^ -o $@
 	
 endif
 
