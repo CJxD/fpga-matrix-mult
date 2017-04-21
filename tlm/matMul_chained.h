@@ -31,7 +31,14 @@ using namespace std;
 
 #define MEM_BASE 0xE0002000
 #define MAT	0x00
-#define RES	0x04
+#define RES	0x08
+
+#define LAYER 						4
+#define FREQ 							200e6
+#define NS_PER_CYCLE 			5
+#define LATENCY_PER_LAYER 3
+#define LATENCY_WRITE 		LAYER*LATENCY_PER_LAYER*NS_PER_CYCLE
+#define LATENCY_READ 			1*NS_PER_CYCLE
 	
 struct matMul_chained:
 	public sc_module
@@ -43,11 +50,8 @@ struct matMul_chained:
 
 	// Containers for inputs and response
 	u8 res[4] = {0, 0, 0, 0};
-	u32 mat = 0;
-	
 	u8 B[4] = {1,0,0,1};
 	u8 C[4] = {1,1,1,1};
-	u8 D[4] = {1,0,0,1};
 	
 	matMul_chained(sc_module_name name) : sc_module(name), port0("port0")
 	{
@@ -74,20 +78,21 @@ struct matMul_chained:
 	}
 
 
-	void NN(u8* MA, u8* MB, u8* MO)
+
+	void NN(u8* MA, u8* MO)
 	{
 		u8 tmp1[4];
 		u8 tmp2[4];
-		matMul(MA,MB,tmp1);
+		matMul(MA,B,tmp1);
 		matAdd(tmp1,C,tmp2);
 	
-		for(int i=0;i<2;i++)
+		for(int i=0;i<LAYER-2;i++)
 		{
-			matMul(tmp2,D,tmp1);
+			matMul(tmp2,B,tmp1);
 			matAdd(tmp1,C,tmp2);
 		}	
 	
-		matMul(tmp2,D,tmp1);
+		matMul(tmp2,B,tmp1);
 		matAdd(tmp1,C,MO);
 	}
 
@@ -96,19 +101,28 @@ struct matMul_chained:
 	{
 		unsigned char *data = trans.get_data_ptr();
 		u64 addr = trans.get_address();
-		int flag = addr ^ MEM_BASE;
+		int regPtr = addr ^ MEM_BASE;
 		if(trans.is_write())
 		{
-			int i, j, k;
 			*(u32*)res = 0;
-			if(flag == MAT) mat = *(u32*) &data[0];
-			u8* A = (u8*)&mat;
-			
-			NN(A, B, res);
+			if(regPtr != MAT) 
+			{
+				trans.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
+				return;
+			}
+			u8* A = (u8*)data;
+			NN(A, res);
+			delay += sc_time(LATENCY_WRITE, SC_NS);
 		}
 		else
 		{
-			if(flag == RES) *(u32*)&data[0] = *(u32*) &res[0];
+			if(regPtr != RES)
+			{
+ 				trans.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
+				return;
+			}
+			*(u32*)&data[0] = *(u32*) &res[0];
+			delay += sc_time(LATENCY_READ, SC_NS);
 		}
 		
 		trans.set_response_status( tlm::TLM_OK_RESPONSE);
