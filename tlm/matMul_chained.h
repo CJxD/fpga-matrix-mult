@@ -31,7 +31,7 @@ using namespace std;
 
 #define MEM_BASE 0xE0002000
 #define MAT	0x00
-#define RES	0x08
+#define RES	0x0C
 
 #define LAYER 						4
 #define FREQ 							200e6

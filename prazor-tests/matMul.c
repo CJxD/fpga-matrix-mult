@@ -13,7 +13,7 @@
 // Memory pointers
 #define MEM_BASE 0xE0002000
 #define MAT	0x00
-#define RES	0x08
+#define RES	0x0C
 
 // Disable page mapping
 #define map_page(addr) addr
