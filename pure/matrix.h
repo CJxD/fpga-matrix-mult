@@ -1,12 +1,13 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
+#define LAYER 4
+
 u32 _data[2];
 u8* _mat = (u8*) &_data[0];
 u8* _res = (u8*) &_data[1];
 u8 B[4] = {1,0,0,1};
 u8 C[4] = {1,1,1,1};
-u8 D[4] = {1,0,0,1};
 
 inline void matMul(u8* MA, u8* MB, u8* MO)
 {
@@ -34,13 +35,13 @@ inline void matrix_multiply()
 	matMul(_mat,B,tmp1);
 	matAdd(tmp1,C,tmp2);
 
-	for(int i=0;i<2;i++)
+	for(int i=0;i<LAYER-2;i++)
 	{
-		matMul(tmp2,D,tmp1);
+		matMul(tmp2,B,tmp1);
 		matAdd(tmp1,C,tmp2);
 	}	
 
-	matMul(tmp2,D,tmp1);
+	matMul(tmp2,B,tmp1);
 	matAdd(tmp1,C,_res);
 }
 #endif
