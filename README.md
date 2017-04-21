@@ -11,10 +11,20 @@ In this folder you will find:
 
 VHLS is already pre-built for Linux x86\_64, but to re-build VHLS, configure with:
 
-    ./configure --enable-plugins
+	# First time commands
+    aclocal
+	autoconf
+	automake
+
+	# Reconfigure command
+	./configure --enable-plugins
+
+	# Rebuild
     make
 
-As long as the environment variables point to the right places in env.sh, VHLS will build with TLM POWER 3 and spEEDO.
+As long as the environment variables point to the right places in env.sh, VHLS will build with TLM POWER 3 and spEEDO. To build without POWER 3 and spEEDO, configure with the following flags:
+
+	./configure --enable-plugins --with-tlm-power=no --with-speedo=no
 
 ## Energy statistics
 
