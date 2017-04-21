@@ -4,6 +4,9 @@
 *.lo
 *.la
 
+# Except the ARM ABI
+!libarm_aeabi.a
+
 .dirstamp
 
 src/vhls
@@ -36,6 +39,7 @@ Makefile
 
 # Remove all files from images directory except source files and Makefile
 images/**/*
+!images/*.a
 !images/**/*.c
 !images/**/*.h
 !images/**/*.S
