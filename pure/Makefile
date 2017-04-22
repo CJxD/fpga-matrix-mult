@@ -3,7 +3,7 @@ all: matMul matMul.dis
 
 OBJD?=objdump
 
-CFLAGS+= -O0 -std=c99
+CFLAGS+= -O0
 LDLIBS= -lc
 
 CMD=./matMul
@@ -24,7 +24,7 @@ currentprobe-client.o: currentprobe-client.c
 endif
 
 matMul.o: matMul.c
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC) -std=c99 $(CFLAGS) -c $^ -o $@
 
 matMul: matMul.o $(EXTRALIBS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
