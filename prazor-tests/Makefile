@@ -5,7 +5,7 @@ all: matMul matMul.dis
 
 include $(VHLS)/images/Makefile.inc
 
-CFLAGS+= -O0 -std=c99
+CFLAGS+= -O0
 EXTRALIBS+= dummy_isr.o
 
 # one core command line
@@ -33,7 +33,7 @@ currentprobe-client.o: currentprobe-client.c
 endif
 
 matMul.o: matMul.c
-	$(CC) $(CFLAGS) -I$(DDRIVERS)/uart64_cbg -c $^ -o $@
+	$(CC) -std=c99 $(CFLAGS) -I$(DDRIVERS)/uart64_cbg -c $^ -o $@
 
 matMul: $(CRT1) matMul.o $(EXTRALIBS) $(LIBS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
