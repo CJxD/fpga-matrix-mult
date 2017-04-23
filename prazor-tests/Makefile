@@ -25,10 +25,10 @@ SHIMMETHOD=-DUSE_SPEEDO -DUSE_VHLS_BACKDOORS
 endif
 
 energyshim.o: energyshim.c
-	$(CC) $(CFLAGS) $(SHIMMETHOD) -c $^ -o $@
+	$(CC) $(CFLAGS) $(SHIMMETHOD) -c $< -o $@
 
 currentprobe-client.o: currentprobe-client.c
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 	
 endif
 

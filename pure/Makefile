@@ -16,10 +16,10 @@ SHIMMETHOD=-DGET_ENERGY_FROM_PROBE
 
 EXTRALIBS+= energyshim.o currentprobe-client.o
 energyshim.o: energyshim.c
-	$(CC) $(CFLAGS) $(SHIMMETHOD) -c $^ -o $@
+	$(CC) $(CFLAGS) $(SHIMMETHOD) -c $< -o $@
 
 currentprobe-client.o: currentprobe-client.c
-	$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 endif
 
