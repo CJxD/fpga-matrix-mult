@@ -13,12 +13,9 @@
 #define BUS_WIDTH 64
 
 #ifdef TLM_POWER3
-#ifndef PW_TLM_PAYLOAD
-#define PW_TLM_PAYLOAD 1
-#endif
 #include <tlm_power>
 typedef PW_TLM_TYPES base_types_t;
-typedef PW_TLM_PAYTYPE payload_t;
+typedef PRAZOR_GP_T payload_t;
 #else
 typedef tlm::tlm_base_protocol_types base_types_t;
 typedef tlm::tlm_generic_payload payload_t;
@@ -114,7 +111,8 @@ struct matMul_chained:
 				status = 0;
 				NN(A, res);
 				status = 1;
-				delay += sc_time(LATENCY_WRITE, SC_NS);
+				sc_time latency = sc_time(LATENCY_WRITE, SC_NS);
+				AUGMENT_LT_DELAY(trans.ltd, delay, latency);
 			}
 			else
 			{
@@ -127,12 +125,14 @@ struct matMul_chained:
 			if(regPtr == RES)
 			{
  				*(u32*)&data[0] = *(u32*) &res[0];
-				delay += sc_time(LATENCY_READ, SC_NS);
+				sc_time latency = sc_time(LATENCY_READ, SC_NS);
+				AUGMENT_LT_DELAY(trans.ltd, delay, latency);
 			}
 			else if(regPtr == STATUS)
 			{
 				*(u32*)&data[0] = (u32) status;
-				delay += sc_time(LATENCY_READ, SC_NS);
+				sc_time latency = sc_time(LATENCY_READ, SC_NS);
+				AUGMENT_LT_DELAY(trans.ltd, delay, latency);
 			}
 			else
 			{
