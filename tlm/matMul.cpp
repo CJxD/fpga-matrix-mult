@@ -44,6 +44,14 @@ SC_MODULE(matMul)
 			p->set_write();
 			p->set_address(MEM_BASE + MAT);
 			socket->b_transport(*p, d);
+			
+			do
+			{
+				p->set_read();
+				p->set_address(MEM_BASE + STATUS);
+				socket->b_transport(*p, d); 
+				res = *val;
+			} while (res == 0);
 
 			p->set_read();
 			p->set_address(MEM_BASE + RES);

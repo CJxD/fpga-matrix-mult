@@ -18,14 +18,15 @@ void matrix_multiply();
 #define MEM_BASE ((ptr_t) _data)
 #define MAT	(ptr_t) _mat - MEM_BASE
 #define RES	(ptr_t) _res - MEM_BASE
+#define STATUS (ptr_t) _status - MEM_BASE
 
 // Disable page mapping
 #define map_page(addr) addr
 #define unmap_page(addr)
 
 // Define write and read commands
-#define WRITE(offset, x) (*((u32*)(mem_base+offset)) = x);(matrix_multiply())
-#define READ(offset) (*((u32*)(mem_base+offset)))
+#define WRITE(offset, x) (*((volatile u32*)(mem_base+offset)) = x);(matrix_multiply())
+#define READ(offset) (*((volatile u32*)(mem_base+offset)))
 
 // Energyshim entry points
 #ifdef USE_ENERGYSHIM
@@ -58,20 +59,32 @@ int init(int argc, const char* argv[])
 
 	mat = strtoul(argv[1], NULL, 16);
 
-	printf("Mapping memory\n");
+	printf("Mapping memory...");
 	mem_base = (ptr_t) map_page(MEM_BASE);
 
 	if (mem_base <= 0)
 		return 1;
+	printf("done\n");
+	
+	printf("Running self-check...");
+	WRITE(MAT, 0x0);	
+	do
+	{
+		res = READ(STATUS);
+	} while (res == 0);
+	res = READ(RES);
+	printf("done\n");
 
 #if !defined(USE_ENERGYSHIM) && !defined(__linux__)
-	printf("Turning on L1 and L2 caches\n");
+	printf("Turning on L1 and L2 caches...");
 	zynq_enable_caches();
+	printf("done\n");
 #endif
 
 #if defined(__linux__) && defined(FUCK_WITH_INTERRUPTS)
-	printf("Turning off interrupts\n");
+	printf("Turning off interrupts...");
 	zynq_disable_interrupts();
+	printf("done\n");
 #endif
 
 	printf("\n");
@@ -89,12 +102,14 @@ int deinit()
 	printf("\n");
 
 #if defined(__linux__) && defined(FUCK_WITH_INTERRUPTS)
-	printf("Turning on interrupts\n");
+	printf("Turning on interrupts...");
 	zynq_enable_interrupts();
+	printf("done\n");
 #endif
 
-	printf("Unmapping memory\n");
+	printf("Unmapping memory...");
 	unmap_page((void*) mem_base);
+	printf("done\n");
 
 	printf("\n");	
 	return 0;

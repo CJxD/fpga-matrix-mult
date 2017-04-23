@@ -34,7 +34,8 @@ using namespace std;
 
 #define MEM_BASE 0xE0002000
 #define MAT	0x00
-#define RES	0x0C
+#define RES	0x08
+#define STATUS 0x0C
 
 #define LAYER				4
 #define FREQ				200e6
@@ -52,6 +53,7 @@ struct matMul_chained:
 	tlm_utils::simple_target_socket<matMul_chained, BUS_WIDTH, base_types_t> port0;
 
 	// Containers for inputs and response
+	u8 status = 0;
 	u8 res[4] = {0, 0, 0, 0};
 	u8 B[4] = {1,0,0,1};
 	u8 C[4] = {1,1,1,1};
@@ -106,24 +108,37 @@ struct matMul_chained:
 		if(trans.is_write())
 		{
 			*(u32*)res = 0;
-			if(regPtr != MAT) 
+			if(regPtr == MAT) 
+			{
+				u8* A = (u8*)data;
+				status = 0;
+				NN(A, res);
+				status = 1;
+				delay += sc_time(LATENCY_WRITE, SC_NS);
+			}
+			else
 			{
 				trans.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
 				return;
 			}
-			u8* A = (u8*)data;
-			NN(A, res);
-			delay += sc_time(LATENCY_WRITE, SC_NS);
 		}
 		else
 		{
-			if(regPtr != RES)
+			if(regPtr == RES)
 			{
- 				trans.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
+ 				*(u32*)&data[0] = *(u32*) &res[0];
+				delay += sc_time(LATENCY_READ, SC_NS);
+			}
+			else if(regPtr == STATUS)
+			{
+				*(u32*)&data[0] = (u32) status;
+				delay += sc_time(LATENCY_READ, SC_NS);
+			}
+			else
+			{
+				trans.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
 				return;
 			}
-			*(u32*)&data[0] = *(u32*) &res[0];
-			delay += sc_time(LATENCY_READ, SC_NS);
 		}
 		
 		trans.set_response_status(tlm::TLM_OK_RESPONSE);
