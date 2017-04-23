@@ -12,17 +12,8 @@
 
 #include <atomic>
 
-#ifdef TLM_POWER3
-#include "tlm_power.h"
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-typedef int pw_customer_acct; /* use a simple int as a placeholder */
-#define PW_TLM3(X)
-#define POWER3(X)
-#endif
+
+#include "prazor.h"
 
 #define SCUTRC(ADDR, X)\
 {\
@@ -33,6 +24,7 @@ typedef int pw_customer_acct; /* use a simple int as a placeholder */
   }\
 }
 
+// scu = Snoop Control Unit.
 
 class scu : public sc_module
 #ifdef TLM_POWER3
@@ -50,12 +42,12 @@ class scu : public sc_module
 
     void b_transport(
         int id, 
-        PW_TLM_PAYTYPE &trans, 
+        PRAZOR_GP_T &trans, 
         sc_time &delay);
 
     tlm::tlm_sync_enum nb_transport_bw(
         int id,
-        PW_TLM_PAYTYPE& trans,
+        PRAZOR_GP_T& trans,
         tlm::tlm_phase& phase,
         sc_time& delay);
 
@@ -112,12 +104,11 @@ class scu : public sc_module
     void secondary_operation(
 	int id,
         u64_t addr,
-	PW_TLM_PAYTYPE& otrans,
+	PRAZOR_GP_T& otrans,
 	u8_t* data,
 	bool read, 
 	sc_time& delay);
 
-    ccache_state_mm_t snoop_state_mm;
     sc_event** wait_events;
     std::atomic<u64_t>* served_requests;
     std::atomic<u32_t> read_locked_tid;
@@ -125,9 +116,6 @@ class scu : public sc_module
     stats_t* m_stats;
 
     std::vector<bool> snooped_targets;
-
-    sc_time* snoop_delay;
-
 
 };
 

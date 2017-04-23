@@ -69,7 +69,7 @@
       u64_t r = 0x1234DEAD;
       int rc = -200;
 #ifdef WITH_SPEEDO
-      rc = busaccess.speedo.speedo_api(backaddr, r, /*writef*/false, delay, procID);
+      rc = busaccess.speedo.speedo_api(backaddr, r, /*writef*/false, lt_d_delay, procID);
 #endif
       read_data = r;
       if (BACKDOOR_TRACE_ENABLED()) printf("spEEDO reg read %x %x\n", backaddr, read_data);
@@ -83,7 +83,7 @@
       if ((backaddr & 0xF8) == TICKS_REG_A)
 	{
 	  // Add on the loosely timed advance.
-	  u32_t current_time = static_cast<u32_t>((lt_d_delay+sc_time_stamp()).to_seconds()*1e6);
+	  u32_t current_time = static_cast<u32_t>((lt_d_delay.point()).to_seconds()*1e6);
 	  r = current_time;
 	  // You can read the ticks from the local timer register on ARM 
 	  if (BACKDOOR_TRACE_ENABLED())  printf("Returning counter ticks %li (microseconds)\n", r);

@@ -42,14 +42,14 @@ hypertransport::hypertransport(sc_core::sc_module_name names,
 
 
 // TLM-2 blocking transport method
-void hypertransport::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
+void hypertransport::b_transport(int id, PRAZOR_GP_T& trans, sc_time &delay_) {
   // if it comes from the crossbar then it needs to be forwarded
   if(id == 0) {
-    init_socket[1]->b_transport(trans, delay);
+    init_socket[1]->b_transport(trans, delay_);
   }
   // if it comes from other hypertransport link then send it to the crossbar
   else if(id == 1) {
-    init_socket[0]->b_transport(trans, delay);
+    init_socket[0]->b_transport(trans, delay_);
   }
   else
     assert(0);
@@ -57,9 +57,9 @@ void hypertransport::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) 
 }
 
 tlm_sync_enum hypertransport::nb_transport_fw(int id,
-					      PW_TLM_PAYTYPE& trans,
+					      PRAZOR_GP_T& trans,
 					      tlm_phase& phase,
-					      sc_time& delay) {
+					      sc_time& delay_) {
 
   int dest_node = -1;
   u64_t cache_addr = 0;
@@ -125,25 +125,28 @@ tlm_sync_enum hypertransport::nb_transport_fw(int id,
        || (reqm && reqm->creator_node == m_socket_no)
        || (unblockm && unblockm->creator_node == m_socket_no)
        || (ackm && ackm->orig_node == m_socket_no))
-      delay += m_dest_clk_cycles * m_period;
-
+      {
+	AUGMENT_LT_DELAY(trans.ltd, delay_, m_dest_clk_cycles * m_period);
+      }
     ht_lock->lock();
-    if(sc_time_stamp() + delay >= m_next_time) {
-      m_next_time = sc_time_stamp() + delay + msg_delay;
-      delay += msg_delay;
+    if(COLLECT_LT_DELAY(sc_time_stamp() + delay_, trans.ltd.point()) >= m_next_time) 
+      {
+	m_next_time = COLLECT_LT_DELAY(sc_time_stamp() + delay_, trans.ltd.point()) + msg_delay;
+	AUGMENT_LT_DELAY(trans.ltd, delay, msg_delay);
     }
     else {
       // we should forward the message when the last one
       // before has gone through
-      sc_time diff = m_next_time - (sc_time_stamp() + delay);
-      delay += diff + msg_delay;
+      // OLD: sc_time diff = m_next_time - (sc_time_stamp() + delay);
+      sc_time diff = m_next_time - COLLECT_LT_DELAY(sc_time_stamp() + delay_, trans.ltd.point());
+      AUGMENT_LT_DELAY(trans.ltd, delay_, diff + msg_delay);
       m_next_time += msg_delay;
     }
     ht_lock->unlock();
 
 #endif
     
-    init_socket[1]->nb_transport_fw(trans, phase, delay);
+    init_socket[1]->nb_transport_fw(trans, phase, delay_);
   }
   // if it comes from other hypertransport link then send it to the crossbar
   else if(id == 1) {
@@ -153,10 +156,10 @@ tlm_sync_enum hypertransport::nb_transport_fw(int id,
        || (reqm && reqm->home_node == m_socket_no)
        || (unblockm && unblockm->dest_node == m_socket_no)
        || (ackm && ackm->dest_node == m_socket_no))
-      delay += m_src_clk_cycles * m_period;
+      AUGMENT_LT_DELAY(trans.ltd, delay, m_src_clk_cycles * m_period);
 #endif
 
-    init_socket[0]->nb_transport_fw(trans, phase, delay);
+    init_socket[0]->nb_transport_fw(trans, phase, delay_);
   }
   else
     assert(0);
@@ -165,9 +168,11 @@ tlm_sync_enum hypertransport::nb_transport_fw(int id,
 }
 
 bool hypertransport::get_direct_mem_ptr(int n, 
-					PW_TLM_PAYTYPE& trans, 
+					PRAZOR_GP_T& trans, 
 					tlm::tlm_dmi& dd) {
   
   // MP: To be implemented (TODO)
   assert(0);
 }
+
+// eof

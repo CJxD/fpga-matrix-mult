@@ -29,7 +29,7 @@ GET_ENERGY_FROM_PROBE ?= 0
 
 # DDR3_micron_8M_8B_x16_sg15: # NUM_BANKS=8 NUM_ROWS=8192 NUM_COLS=1024 DEVICE_WIDTH=16 = 8*8192*1024/2 Bytes = 64 MByte.
 # 
-DRAM_FLAGS ?= -dram-system-ini $(VHLS)/src/dramsim2/dist/system.ini.example \
+DRAM_FLAGS ?= -dram-system-ini $(VHLS)/boards/parallella/dramsim.ini \
               -dram-device     $(VHLS)/boards/parallella/DDR3_micron_32M_8B_x32_parallella.ini
 
 

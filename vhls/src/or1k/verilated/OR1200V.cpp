@@ -192,7 +192,7 @@ void OR1200V::reset(bool selfstart)
 
 
 // Instruction mini-cache for other half of a 64 bit word.
-void OR1200V::ins_fetcher_t::fetch(u32_t memadr, u32_t &i, sc_time &lt_busdelay)
+void OR1200V::ins_fetcher_t::fetch(u32_t memadr, u32_t &i, lt_delay &lt_busdelay)
 { 
   u32_t a1 = memadr & ~7;
   if (a1 != cached_adr)
@@ -205,7 +205,7 @@ void OR1200V::ins_fetcher_t::fetch(u32_t memadr, u32_t &i, sc_time &lt_busdelay)
 }
 
 
-void OR1200V::ifetch_step(sc_time &delay)
+void OR1200V::ifetch_step(lt_delay &delay)
 {
   //Service instruction fetch port
   if (or1200_cpu.iwb_cyc_o && or1200_cpu.iwb_stb_o)
@@ -234,12 +234,12 @@ void OR1200V::ifetch_step(sc_time &delay)
 }
 
 
-int OR1200V::eval_bdoor_read(oraddr_t memaddr, u32_t &rdata, sc_time &delay)
+int OR1200V::eval_bdoor_read(oraddr_t memaddr, u32_t &rdata, lt_delay &delay)
 {
   #include "../backdoor_reads.C"
 }
 
-int OR1200V::eval_bdoor_write(oraddr_t memaddr, u32_t wdata,   sc_time &delay)
+int OR1200V::eval_bdoor_write(oraddr_t memaddr, u32_t wdata,   lt_delay &delay)
 {
   #include "../backdoor_writes.C"
 }
@@ -249,16 +249,17 @@ int OR1200V::eval_bdoor_write(oraddr_t memaddr, u32_t wdata,   sc_time &delay)
 void OR1200V::run()
 {
   //m_qk.set_global_quantum(m_core_period); // Wrong place to set this
-  m_qk.reset();
+  //m_qk.reset();
   update(0);
   while(!over)
     {
-      if (m_qk.need_sync()) m_qk.sync();  // Keeper synchronize when quantum is reached
+      master_runahead.perhaps_sync();
+      //if (m_qk.need_sync()) m_qk.sync();  // Keeper synchronize when quantum is reached
       //busaccess.tick();
-      sc_time ins_start = m_qk.get_current_time();
       //cout << ins_start << " " << name() << " tick\n";
-      sc_time lt_d_delay = SC_ZERO_TIME; //
-      sc_time lt_i_delay = SC_ZERO_TIME; //
+      sc_time ins_start = master_runahead.point();
+      lt_delay lt_d_delay = master_runahead;
+      lt_delay lt_i_delay = master_runahead;
 
       ifetch_step(harvardf ? lt_i_delay: lt_d_delay);  //Service instruction fetch charging delay to appropriate account.
 
@@ -318,13 +319,14 @@ void OR1200V::run()
 	  or1200_cpu.dwb_ack_i = true; 
 	}
 
-      sc_time d_end = lt_d_delay + sc_time_stamp(); // D Bus cycle end time
-      sc_time i_end = lt_i_delay + sc_time_stamp(); // I Bus cycle end time 
       // Retire join: take maximum of internal and external delays at join.
-#define TMAX(X, Y) ((X)>(Y)?(X):(Y))
-      sc_time run_until = TMAX(ins_start + m_effective_instruction_period, TMAX(i_end, d_end));
+      master_runahead += m_effective_instruction_period;  //core_period modified by nominal IPC.
+      master_runahead << lt_d_delay; // Join with any external operations on the d-cache
+      master_runahead << lt_i_delay; // Join with any external operations on the i-cache
+
+      // This code may be wonky: I edited it to use the lt_delay construct but have not checked it I'm afraid.
       sc_time retire_time = ins_start;
-      while (retire_time < run_until && !over)
+      while (retire_time < master_runahead.point() && !over)
 	{
 	  retire_time += m_effective_instruction_period;  // 
 	  if (reset_or_yield_countdown > 0)
@@ -342,6 +344,7 @@ void OR1200V::run()
 	  or1200_cpu.dwb_ack_i = false; //clear previous ack
 	}
       //       cout << "kernel=" << sc_time_stamp() << " start=" << ins_start << " ext_end=" << ext_end << " ins_end=" << ins_end << "\n";
+#if OLD
       if (0)
 	{
 	  cout << "kernel=" << sc_time_stamp() << " start=" << ins_start << "\n";
@@ -350,9 +353,11 @@ void OR1200V::run()
 	  //std::cout << "Retire at " << retire_time << "\n";
 	}
       m_qk.set(retire_time-sc_time_stamp());      // Accumulate local time
+#endif
     } 
-  m_qk.sync();
+  //m_qk.sync();
 }
+
 
 
 void OR1200V::dumpregs(FILE *fd, int allregs)
@@ -409,8 +414,9 @@ void OR1200V::corepause(int us)  // Pause CPU for this time interval
 {
   // We need to implement the halt and interrupt material as well...
   sc_time l_delay(us, SC_US);
-  m_qk.sync();
-  wait(l_delay);
+  master_runahead += l_delay;
+  master_runahead.force_sync(); //
+  //m_qk.sync();
 }
 
 

@@ -37,7 +37,6 @@ struct llsc_extension : tlm::tlm_extension<llsc_extension>
 {
   enum llsc_cmd_t { llsc } cmd;
   void *id; // Locker's identity (if not anonymous).
-  tlm::tlm_generic_payload *next_on_freelist;
   llsc_extension() // constructor
    {
      cmd = llsc;
@@ -76,7 +75,7 @@ struct llsc_extension : tlm::tlm_extension<llsc_extension>
        //printf("LLSC: Assigning to lock 1 at 0x%lx id 0x%lx\n", adr, id);
 
      }
-   else if (lks->llsc0.a == (unsigned int)-1) 
+   else if (lks->llsc0.a == -1) 
      {
        lks->llsc0.a = adr;
        lks->llsc0.id = id;
@@ -86,7 +85,7 @@ struct llsc_extension : tlm::tlm_extension<llsc_extension>
       {
 	lks->llsc1.a = adr;
 	lks->llsc1.id = id;
-	//printf("LLSC %s: Assigning to lock 1 at 0x%lx id 0x%lx\n", adr, id);
+	//printf("LLSC: Assigning to lock 1 at 0x%lx id 0x%lx\n", adr, id);
 
       }
     // Load linked ALWAYS SUCCEEDS.
@@ -115,67 +114,5 @@ struct llsc_extension : tlm::tlm_extension<llsc_extension>
 
   
 };
-
-
-
-// Memory manager: not thread safe.
-class llsc_mm_t: public tlm::tlm_mm_interface
-{
- private:
-  tlm::tlm_generic_payload *freelist;
-
- public:
-  //  void set_mm(gp_mm* arg) { m_mm = arg; }
-  //  virtual void  free(tlm::tlm_generic_payload* trans);
-  
-  llsc_mm_t () // constructor
-    {
-      freelist = 0;
-      //printf("Made an llsc mem manager %p %p\n", this, &freelist);
-    }
-
-
-  tlm::tlm_generic_payload* allocate()
-    {
-      tlm::tlm_generic_payload *r;
-      if (freelist)
-	{
-	  r = freelist;
-	  llsc_extension *ext = 0;
-	  r->get_extension(ext);
-	  freelist = (ext) ?  ext->next_on_freelist: 0; // Our freelist contains complete payloads, but, confusingly, we link the list using a field in the extension. 
-	  //printf("found %p on freelist\n", r);
-	  //      llsc_extension *ext = 0;
-	}
-      else 
-	{
-	  // We store generic payloads with their llsc_extension installed.
-	  r = new (tlm::tlm_generic_payload)(this);
-	  // constructor does this: r->set_mm(this);
-	  //printf("%p %p New needed %p\n", this, &freelist, r);
-	}
-      llsc_extension *ext = 0;
-      r->get_extension(ext); // Should be already installed if came from free list.
-      if (!ext)
-	{
-
-	  ext = new llsc_extension;
-	  r->set_extension(ext);
-	}
-      return r;
-    };
-
-  void free(tlm::tlm_generic_payload* r)
-  {
-    //printf("%p %p freelist=%p Freed  %p\n", this, &freelist, freelist, r);
-    llsc_extension *ext = 0;
-    r->get_extension(ext);
-    assert(ext);
-    ext->next_on_freelist = freelist;
-    freelist = r;
-  }
-};
-
-
 
 #endif

@@ -412,5 +412,7 @@ enum TargetSignal {
 };
 
 #define TRACECOMM 0
+#define THREAD_COMM 0
+#define TEMP_PT_BYPASS 1
 
 #endif

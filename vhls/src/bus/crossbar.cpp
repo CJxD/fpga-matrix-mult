@@ -60,7 +60,7 @@ crossbar::crossbar(sc_core::sc_module_name names,
     next = this;
 }
 
-void crossbar::req_incoming(req_msg* reqm, PW_TLM_PAYTYPE& trans) {
+void crossbar::req_incoming(req_msg* reqm, PRAZOR_GP_T& trans) {
   int home_node = reqm->home_node;
   int source_node = reqm->source_node;
 
@@ -104,8 +104,8 @@ void crossbar::req_incoming(req_msg* reqm, PW_TLM_PAYTYPE& trans) {
       if(trans.get_data_ptr() == 0)
 	mm->real_write = false;
 
-      //PW_TLM_PAYTYPE* probem = probe_msg_mm.allocate();
-      PW_TLM_PAYTYPE* probem = m_mm->allocate();
+      //PRAZOR_GP_T* probem = probe_msg_mm.allocate();
+      PRAZOR_GP_T* probem = m_mm->allocate();
 
       probem->set_extension<probe_msg>(mm);
       probem->acquire();
@@ -160,7 +160,7 @@ void crossbar::req_incoming(req_msg* reqm, PW_TLM_PAYTYPE& trans) {
 #if MOESI_TIMING
       // here we are crossing clock boundaries from northbridge
       // to the hypetransport link
-      delay += src_clk_cycles * m_period;
+      AUGMENT_LT_DELAY(trans.ltd, delay,  src_clk_cycles * m_period);
 #endif
 
       tlm_sync_enum s = init_socket[1 + port]->nb_transport_fw(*probem, ph, delay);
@@ -181,8 +181,8 @@ void crossbar::req_incoming(req_msg* reqm, PW_TLM_PAYTYPE& trans) {
       mm->ty = ack_msg::DRAM;
       if(trans.is_write()) mm->write = true;
       
-      //PW_TLM_PAYTYPE* ackm = ack_msg_mm.allocate();
-      PW_TLM_PAYTYPE* ackm = m_mm->allocate();
+      //PRAZOR_GP_T* ackm = ack_msg_mm.allocate();
+      PRAZOR_GP_T* ackm = m_mm->allocate();
       ackm->acquire();
 
       ackm->set_extension<ack_msg>(mm);
@@ -236,13 +236,13 @@ void crossbar::req_incoming(req_msg* reqm, PW_TLM_PAYTYPE& trans) {
 #if MOESI_TIMING
     if(reqm->creator_node == node_number)
       // crossing clock boundary 
-      delay += src_clk_cycles * m_period;
+      AUGMENT_LT_DELAY(trans.ltd, delay,  src_clk_cycles * m_period);
 #endif
     init_socket[1 + port]->nb_transport_fw(trans, ph, delay);
   }
 }
 
-void crossbar::sri_incoming(sri_msg* srim, PW_TLM_PAYTYPE& trans) {
+void crossbar::sri_incoming(sri_msg* srim, PRAZOR_GP_T& trans) {
   // need to check weather it needs to send it to the memory controller
   // or to send it to the one of hyper transport links
   int home_node = srim->home_node;
@@ -273,8 +273,8 @@ void crossbar::sri_incoming(sri_msg* srim, PW_TLM_PAYTYPE& trans) {
     mm->source_node = node_number;
     mm->home_node = home_node;
     mm->cache_addr = srim->cache_addr;
-    //PW_TLM_PAYTYPE* reqm = req_msg_mm.allocate();
-    PW_TLM_PAYTYPE* reqm = m_mm->allocate();
+    //PRAZOR_GP_T* reqm = req_msg_mm.allocate();
+    PRAZOR_GP_T* reqm = m_mm->allocate();
     reqm->acquire();
 
     reqm->set_extension<req_msg>(mm);
@@ -306,7 +306,7 @@ void crossbar::sri_incoming(sri_msg* srim, PW_TLM_PAYTYPE& trans) {
   }   
 }
 
-void crossbar::probe_incoming(probe_msg* probe, PW_TLM_PAYTYPE& trans) {
+void crossbar::probe_incoming(probe_msg* probe, PRAZOR_GP_T& trans) {
   tlm_phase ph = BEGIN_REQ;
   sc_time delay = SC_ZERO_TIME;
   if(node_number == probe->dest_node) {
@@ -322,7 +322,7 @@ void crossbar::probe_incoming(probe_msg* probe, PW_TLM_PAYTYPE& trans) {
   }
 }
 
-void crossbar::ack_incoming(ack_msg* ack, PW_TLM_PAYTYPE& trans) {
+void crossbar::ack_incoming(ack_msg* ack, PRAZOR_GP_T& trans) {
   tlm_phase ph = BEGIN_REQ;
   sc_time delay = SC_ZERO_TIME;
   if(ack->evict_line) {
@@ -340,7 +340,7 @@ void crossbar::ack_incoming(ack_msg* ack, PW_TLM_PAYTYPE& trans) {
 #if MOESI_TIMING
     // the message was received from the ht link so there was clock crossing
     if(ack->orig_node != ack->dest_node)
-      delay += dest_clk_cycles * m_period;
+      AUGMENT_LT_DELAY(trans.ltd, delay,  dest_clk_cycles * m_period);
 #endif
 
     // forward acknowledgment message to sri module 
@@ -355,13 +355,13 @@ void crossbar::ack_incoming(ack_msg* ack, PW_TLM_PAYTYPE& trans) {
 
 #if MOESI_TIMING
     if(ack->orig_node == node_number)
-      delay += src_clk_cycles * m_period;
+      AUGMENT_LT_DELAY(trans.ltd, delay,  src_clk_cycles * m_period);
 #endif
     init_socket[1 + port]->nb_transport_fw(trans, ph, delay);
   }
 }
 
-void crossbar::unblock_incoming(unblock_msg* unblock, PW_TLM_PAYTYPE& trans) {
+void crossbar::unblock_incoming(unblock_msg* unblock, PRAZOR_GP_T& trans) {
   tlm_phase ph = BEGIN_REQ;
   sc_time delay = SC_ZERO_TIME;
   if(node_number == unblock->dest_node) {
@@ -371,7 +371,7 @@ void crossbar::unblock_incoming(unblock_msg* unblock, PW_TLM_PAYTYPE& trans) {
     assert(req_busy);
     req_busy = false;
     if(req_queue.size() > 0) {
-      PW_TLM_PAYTYPE* t = req_queue.front();
+      PRAZOR_GP_T* t = req_queue.front();
       req_queue.pop();
       
       // check to see if this node still owns the memory address
@@ -425,7 +425,7 @@ void crossbar::unblock_incoming(unblock_msg* unblock, PW_TLM_PAYTYPE& trans) {
 	sc_time delay = SC_ZERO_TIME;
 #if MOESI_TIMING
 	// clock crossing between norhtbridge and HT link
-	delay += src_clk_cycles * m_period;
+	AUGMENT_LT_DELAY(trans.ltd, delay,  src_clk_cycles * m_period);
 #endif
 	//llsc_extension* llsc;
 	t->get_extension(llsc);
@@ -446,7 +446,7 @@ void crossbar::unblock_incoming(unblock_msg* unblock, PW_TLM_PAYTYPE& trans) {
   else {
 #if MOESI_TIMING
     if(unblock->creator_node == node_number)
-      delay += src_clk_cycles * m_period;
+      AUGMENT_LT_DELAY(trans.ltd, delay,  src_clk_cycles * m_period);
 #endif
     u32_t port = route_table[unblock->dest_node];
     init_socket[1 + port]->nb_transport_fw(trans, ph, delay);
@@ -454,7 +454,7 @@ void crossbar::unblock_incoming(unblock_msg* unblock, PW_TLM_PAYTYPE& trans) {
 }
 
 // TLM-2 blocking transport method
-void crossbar::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
+void crossbar::peq_cb(PRAZOR_GP_T& trans, const tlm_phase& ph) {
   if(ph == END_REQ) {    
     sc_time delay = SC_ZERO_TIME;
     tlm_phase ph = END_REQ;
@@ -565,14 +565,14 @@ void crossbar::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
     assert(0);
 }
 
-bool crossbar::get_direct_mem_ptr(int n, PW_TLM_PAYTYPE& trans, tlm::tlm_dmi& dd) {
+bool crossbar::get_direct_mem_ptr(int n, PRAZOR_GP_T& trans, tlm::tlm_dmi& dd) {
   
   // MP: To be implemented (TODO)
   assert(0);
 }
 
 tlm_sync_enum crossbar::nb_transport_fw(int id,
-					PW_TLM_PAYTYPE& trans,
+					PRAZOR_GP_T& trans,
 					tlm_phase& phase,
 					sc_time& delay) {
   // Crossbar incoming links should be
@@ -616,7 +616,7 @@ tlm_sync_enum crossbar::nb_transport_fw(int id,
 	 || (reqm && reqm->home_node == node_number)
 	 || (unblockm && unblockm->dest_node == node_number)
 	 || (ackm && ackm->dest_node == node_number)))
-    delay += dest_clk_cycles * m_period;
+    AUGMENT_LT_DELAY(trans.ltd, delay,  dest_clk_cycles * m_period);
 #endif
 
   m_peq.notify(trans, phase, delay);
@@ -625,7 +625,7 @@ tlm_sync_enum crossbar::nb_transport_fw(int id,
 }
 
 tlm_sync_enum crossbar::nb_transport_bw(int id,
-					PW_TLM_PAYTYPE& trans,
+					PRAZOR_GP_T& trans,
 					tlm_phase& phase,
 					sc_time& delay) {
   // Crossbar incoming links should be
@@ -639,3 +639,5 @@ tlm_sync_enum crossbar::nb_transport_bw(int id,
   m_peq.notify(trans, phase, delay);
   return TLM_ACCEPTED;
 }
+
+// eof

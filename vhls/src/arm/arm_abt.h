@@ -4,26 +4,13 @@
 #ifndef ARM_ABT_H__
 #define ARM_ABT_H__
 
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
 #include "tlm_utils/simple_target_socket.h"
 #include <set>
 #include <map>
-
-
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
-
-
-
 
 
 class bloom_filter2
@@ -150,7 +137,7 @@ class alternate_banch_target_buffer :
   } stats;
 
 
-  void b_access(PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(PRAZOR_GP_T &trans, sc_time &delay);
 
   // constructor
   alternate_banch_target_buffer(const sc_module_name &module_name,  bool with_snoop_socket, int logsize=8, int bloom_logsize=22);

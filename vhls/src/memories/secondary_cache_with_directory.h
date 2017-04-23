@@ -11,13 +11,6 @@
 #include "tenos.h"
 #include "memories_extensions.h"
 
-#ifdef TLM_POWER3
-#include "tlm_power.h"
-#include "pw_tlm_payload.h"
-#define POWER3(X) X
-#else
-#define POWER3(X)
-#endif
 
 #define MAX_LINESIZE 1024
 
@@ -43,53 +36,6 @@ struct way_extension : tlm::tlm_extension<way_extension>
     way = static_cast<way_extension const &>(ext).way;
   }
 };
-
-// Memory manager
-class way_mm_t : public tlm::tlm_mm_interface
-{
- private:
-  PW_TLM_PAYTYPE *freelist;
-
- public:
-  way_mm_t () { // constructor
-    freelist = 0;
-  }
-
-  PW_TLM_PAYTYPE* allocate() {
-    PW_TLM_PAYTYPE *r;
-    if (freelist) {
-      r = freelist;
-      freelist = 0;
-    }
-    else {
-      r = new (PW_TLM_PAYTYPE)(this);
-    }
-    
-    way_extension *ext;
-    r->get_extension(ext);
-    if (!ext) {
-      ext = new way_extension;
-      r->set_extension(ext);
-    }
-    return r;
-  }
-
-  void free(tlm::tlm_generic_payload* r) {
-    assert(!freelist);
-    freelist = (PW_TLM_PAYTYPE*)r;
-  }
-
-#ifdef TLM_POWER3
-#if PW_TLM_PAYLOAD > 0 
-  void free(PW_TLM_PAYTYPE* r) {
-    assert(!freelist);
-    freelist = r;
-  }
-#endif
-#endif
-
-};
-
 
 class secondary_cache_with_directory:
   public sc_module
@@ -238,7 +184,7 @@ class secondary_cache_with_directory:
     cacheway(secondary_cache_with_directory* parent, int way);//constructor
     bool lookup(u64_t addr, int dmap, u8_t ** cline, sc_time& max_delay);
     void clear(sc_time& delay, int dmap, u64_t addr);
-    void insert(u64_t addr, int dmap, u8_t* cline, sc_time& delay, u64_t full_addr);
+    void insert(u64_t addr, int dmap, u8_t* cline,   lt_delay& ltd, sc_time& delay, u64_t full_addr);
   };
 
   sc_mutex ml;
@@ -300,17 +246,17 @@ class secondary_cache_with_directory:
 		   int dmap, 
 		   int loffset, 
 		   u64_t* &datap1, 
+		   lt_delay& ltd,
 		   sc_time& delay,
 		   u64_t full_addr);
   int main_memory_lookup(u64_t line_addr, u8_t *cline, sc_time& delay);
-  void b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_transport(int id, PRAZOR_GP_T &trans, sc_time &delay);
   void clean(sc_time &delay);
 
   void invalidate_line_in_primary(int core, int w, int addr, sc_time &delay);
 
  private:
   u64_t get_dir_entry_content(int dmap, int way);
-  way_mm_t way_mm;
 #ifdef TLM_POWER3
     pw_energy std_energy_op;
 #endif

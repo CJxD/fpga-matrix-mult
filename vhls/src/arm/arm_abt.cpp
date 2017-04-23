@@ -195,8 +195,7 @@ void alternate_banch_target_buffer::written_address_snoop(u32_t address, u32_t d
 
 
 // We need to invalidate the whole Bloom filter on any snooped writes that hit in it.
-void alternate_banch_target_buffer::b_access(PW_TLM_PAYTYPE &trans, sc_time &delay)
-
+void alternate_banch_target_buffer::b_access(PRAZOR_GP_T &trans, sc_time &delay)
 {
   u64_t addr = trans.get_address();
 #if 0  

@@ -10,7 +10,7 @@
 // This code provides read results from part of the address space that is internal to the CPU core.
 // and some of these are backdoors that do not exist in the real hardware.
 {
-  extern int backdoor_counter_ticks(sc_time delay);
+  extern int backdoor_counter_ticks(lt_delay delay);
   // BDTRC(printf("Backdoor or I/O read %lx\n", memaddr));
   u32_t backaddr = memaddr & 0xFFFFffff;
   if ((backaddr & 0xFFFF0000) == (SOCDAM_ARGV_BASE_32_BE & 0xFFFF0000))

@@ -59,7 +59,7 @@ arm_scu::arm_scu(sc_module_name name) :
     m_registers->writepo(0x1C, (u8_t*)(&allzeros), 4);
 }
 
-void arm_scu::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_scu::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
     // check to see if it has cp15 extension
     cp15_cache_control_extension* ext = 0;
     trans.get_extension(ext);

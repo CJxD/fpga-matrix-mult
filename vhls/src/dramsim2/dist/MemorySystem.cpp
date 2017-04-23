@@ -1,3 +1,6 @@
+
+// Modified by DJG XPARCH
+
 /*********************************************************************************
 *  Copyright (c) 2010-2011, Elliott Cooper-Balis
 *                             Paul Rosenfeld
@@ -40,6 +43,7 @@
 #include "IniReader.h"
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <assert.h>
 #include <unistd.h>
 #include <errno.h> 
 #include <sstream> //stringstream
@@ -50,7 +54,8 @@ using namespace std;
 
 ofstream cmd_verify_out; //used in Rank.cpp and MemoryController.cpp if VERIFICATION_OUTPUT is set
 
-unsigned NUM_DEVICES;
+unsigned NUM_DEVICES_PER_RANK;
+unsigned CHANNEL_DBUSWIDTH = 32;  // Added by DJG - was prev hardcoded at 64 for DIMM use. Please make settable via ini file.
 unsigned NUM_RANKS;
 
 namespace DRAMSim {
@@ -146,23 +151,42 @@ GREAVES NOTE: For individual chips, instead of SIMMs and DIMMs, the following li
 	*********************/
 
 	// number of bytes per rank
-	unsigned long megsOfStoragePerRank = ((((long long)NUM_ROWS * (NUM_COLS * DEVICE_WIDTH) * NUM_BANKS) * ((long long)JEDEC_DATA_BUS_BITS / DEVICE_WIDTH)) / 8) >> 20;
+	// DJG this 64 bit limit does not apply:
+	//unsigned long megsOfStoragePerRank = ((((long long)NUM_ROWS * (NUM_COLS * DEVICE_WIDTH) * NUM_BANKS) * ((long long)JEDEC_DATA_BUS_BITS / DEVICE_WIDTH)) / 8) >> 20;
 
-	// If this is set, effectively override the number of ranks
-	if (megsOfMemory != 0)
-	{
-		NUM_RANKS = megsOfMemory / megsOfStoragePerRank;
-		if (NUM_RANKS == 0)
-		{
-			PRINT("WARNING: Cannot create memory system with "<<megsOfMemory<<"MB, defaulting to minimum size of "<<megsOfStoragePerRank<<"MB");
-			NUM_RANKS=1;
-		}
-	}
+	// As they say, the only thing to determine in the number of ranks and number of devices, given that total and device size are fixed.
+	unsigned long megsOfStoragePerDevice = ((long long)NUM_ROWS * (long long)NUM_COLS * NUM_BANKS  * (DEVICE_WIDTH / 8)) >> 20;
 
-	NUM_DEVICES = JEDEC_DATA_BUS_BITS/DEVICE_WIDTH;
-	TOTAL_STORAGE = (NUM_RANKS * megsOfStoragePerRank); 
+	//cout << "megsOfMemory wanted is  " << megsOfMemory << "\n";
+	//cout << "megsOfStoragePerDevice is " << megsOfStoragePerDevice << "\n";
 
-	DEBUG("TOTAL_STORAGE : "<< TOTAL_STORAGE << "MB | "<<NUM_RANKS<<" Ranks | "<< NUM_DEVICES <<" Devices per rank");
+	int devices_per_wideword = CHANNEL_DBUSWIDTH / DEVICE_WIDTH;
+
+	if (devices_per_wideword  == 0)
+	  {
+	    PRINT("WARNING: Cannot create memory system with width " << CHANNEL_DBUSWIDTH << " bits, defaulting to minimum width");
+	    devices_per_wideword = 1;
+	  }
+
+	//cout << "Devices_per_wideword " << devices_per_wideword << "\n";
+
+	assert (megsOfMemory != 0);
+
+	NUM_DEVICES_PER_RANK = (megsOfMemory / (megsOfStoragePerDevice * devices_per_wideword)) * devices_per_wideword;
+
+	//cout << "NUM_DEVICES_PER_RANK " << NUM_DEVICES_PER_RANK << "\n";
+
+	if (NUM_DEVICES_PER_RANK == 0)
+	  {
+	    PRINT("WARNING: Cannot create memory system with "<<megsOfMemory<<"MB, defaulting to minimum size of "<<megsOfStoragePerDevice<<"MB");
+	    NUM_DEVICES_PER_RANK=1;
+	  }
+
+	NUM_RANKS = megsOfMemory / (NUM_DEVICES_PER_RANK * megsOfStoragePerDevice);
+
+	TOTAL_STORAGE = (NUM_DEVICES_PER_RANK * NUM_RANKS * megsOfStoragePerDevice); 
+
+	DEBUG("TOTAL_STORAGE : "<< TOTAL_STORAGE << "MB | "<<NUM_RANKS<<" Ranks | "<< NUM_DEVICES_PER_RANK << " Devices");
 
 	IniReader::InitEnumsFromStrings();
 	if (!IniReader::CheckIfAllSet())
@@ -185,6 +209,12 @@ GREAVES NOTE: For individual chips, instead of SIMMs and DIMMs, the following li
 
 
 	memoryController->attachRanks(ranks);
+
+	// djg added
+        cout << "DRAM  device model file " << deviceIniFilename << "\n";
+        cout << "DRAM system model file  " << systemIniFilename << "\n";
+        cout << "DRAM TOTAL_STORAGE : "<< TOTAL_STORAGE << "MB | "<<NUM_RANKS<<" Ranks | "<< NUM_DEVICES_PER_RANK <<" Devices \n";
+
 
 }
 

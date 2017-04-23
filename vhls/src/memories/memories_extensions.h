@@ -9,15 +9,10 @@
 #endif  // PW_TLM_PAYLOAD
 
 
-#ifdef TLM_POWER3
-#include "pw_tlm_payload.h"
-#else
-#include "tlm.h"
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#endif
+
 #include <map>
 #include <systemc.h>
+#include "prazor.h"
 
 enum CACHE_TYPE {
   CT_INSTRUCTION,

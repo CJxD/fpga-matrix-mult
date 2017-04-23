@@ -10,10 +10,9 @@
 #define SPEEDO_API_H
 
 #include <stdint.h>
+#include "prazor.h"
 #include "systemc.h"
-#ifdef TLM_POWER3
-#include <tlm_power>
-#endif
+
 
 /*
  When a context swap is done in h/w owing to watchpoint regs and so on, the 
@@ -53,7 +52,7 @@ class speedo_ifc_t   // spEEDO energy interface
     }
   } slaved_ctx_t;
   slaved_ctx_t Slaved_ctxs[SPEEDO_CONTEXTS];
-  int speedo_api(/*addr_t*/uint64_t addr, uint64_t &data, bool writef, sc_time &delay, int procID);
+  int speedo_api(/*addr_t*/uint64_t addr, uint64_t &data, bool writef, lt_delay &runahead, int procID);
   int current_ctx;
 
 
@@ -63,7 +62,7 @@ class speedo_ifc_t   // spEEDO energy interface
     current_ctx = 0;
   };
   
-  void snapshop_ctx(speedo_context_s &dest, sc_time &delay);
+  void snapshop_ctx(speedo_context_s &dest, lt_delay &runahead);
   int local_energy();
   
 };

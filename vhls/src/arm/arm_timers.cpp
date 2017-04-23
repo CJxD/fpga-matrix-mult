@@ -23,7 +23,7 @@ base_timer::base_timer(sc_module_name name)
 sc_time base_timer::calculate_period(int factor) {
     // get from SCLR what is the value of PLL_FDIV
     u32_t data;
-    PW_TLM_PAYTYPE trans;
+    PRAZOR_GP_T trans;
     trans.set_byte_enable_length(0);
     trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
     trans.set_read();
@@ -91,7 +91,7 @@ arm_twd::arm_twd(sc_module_name name)
   SC_THREAD(run_watchdog);
 }
 
-void arm_twd::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_twd::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
   tlm_command cmd = trans.get_command(); 
   u32_t adr = (u32_t)trans.get_address();
   u8_t* ptr = trans.get_data_ptr();
@@ -661,7 +661,7 @@ void arm_ttc::run_timer(int id) {
   }
 }
 
-void arm_ttc::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_ttc::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
   tlm_command cmd = trans.get_command(); 
   u32_t adr = (u32_t)trans.get_address();
   u8_t* ptr = trans.get_data_ptr();
@@ -958,7 +958,7 @@ arm_glbt::arm_glbt(sc_module_name name, int cores)
   SC_THREAD(run);
 }    
 
-void arm_glbt::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_glbt::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
   tlm_command cmd = trans.get_command();
   u32_t adr = (u32_t)trans.get_address();
   u8_t* ptr = trans.get_data_ptr();
@@ -1224,7 +1224,7 @@ arm_swdt::arm_swdt(sc_module_name name)
   SC_THREAD(run);
 }
 
-void arm_swdt::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_swdt::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
   tlm_command cmd = trans.get_command(); 
   u32_t adr = (u32_t)trans.get_address();
   u8_t* ptr = trans.get_data_ptr();
@@ -1333,6 +1333,8 @@ void arm_swdt::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
       break;
    }
   }
+
+  // TODO there is no AUGMENT_LT_DELAY() call here!
 }
 
 void arm_swdt::run() {

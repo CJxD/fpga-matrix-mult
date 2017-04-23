@@ -28,7 +28,7 @@
 #define TRUE 1
 #define SKIP(X)
 #define BUSIF_TRC(X)
-#define FLOAT_TRACE(X) 
+#define FLOAT_TRACE(X)
 
 
 #include <stdio.h>
@@ -39,6 +39,15 @@
 
 #include "tenos.h"
 #include "armisa.h"
+
+#if THREAD_COMM
+extern int g_thread_comm;
+
+addr_owners_t g_thread_comm_producers;
+uint64_t** g_thread_comm_consumers;
+
+using namespace boost::icl;
+#endif
 
 #if TRACECOMM
 extern int g_tracecomm;
@@ -59,7 +68,6 @@ extern io_backdoor_setup *io_backdoor_su;
 #include "ptrace_v1.h"
 
 #define   ARM32_INSTRUCTION_PTRACE(core_no, executedf, pc, ins32) BIN_INSTRUCTION_PTRACE(core_no, ARM32_SET, executedf, pc, ins32)
-
 
 
 
@@ -321,6 +329,9 @@ armisa::armisa(int core_no, const char *myname):
   m_uses_defs_idx = 0;
   m_thumb16_only_ipc = false;
   m_thumb32 = false;
+
+  insRt = -1;
+  insRt2 = -1;
 }
 
 
@@ -593,7 +604,7 @@ void armisa::exec_shift_operand_instr() {
 	if (shift == 0)
 	  {
 	    insShiftCarryOut = CFlag();
-	    insAluOperand2 = rm;
+	    insAluOperand2 = (rm >> 1) | (CFlag() << 31);
 	  }
 	else
 	  {
@@ -979,6 +990,12 @@ void armisa::exec_float_alu_instr() {
 	return;
 	
       }
+
+      case 14: { // VNUM
+	res = op1 * op2 * -1;
+	break;
+      }
+	
       default: {
 	assert(0);
       }
@@ -1014,7 +1031,7 @@ void armisa::exec_float_alu_instr() {
       case 1: { // VDIV
 	res = op1 / op2;
 	FLOAT_TRACE(printf("0x%08x -- VDIV(%.4lf[D%d]/%.4lf[D%d])=%.4lf[D%d]\n", \
-			   insAddress, op1, insRn, op2, insRm, res, insRd););
+			       insAddress, op1, insRn, op2, insRm, res, insRd););
 	break;
       }
 
@@ -1062,8 +1079,8 @@ void armisa::exec_float_alu_instr() {
       case 7: { // VCMP{E}
 	double val = *((double*)(&d_reg[insRd]));
 	fpscr_val = (val == 0.0) ? 0x6 : (val > 0.0) ? 0x2 : 0x8;
-	FLOAT_TRACE(printf("0x%08x -- VCMP(%.4lf[D%d], 0.0)\n",\
-			   insAddress, val, insRd););
+	FLOAT_TRACE(printf("0x%08x -- VCMP(%.4lf[D%d], 0.0)\n",	\
+			       insAddress, val, insRd););
 
 	/* do not update destination register */
 	return;
@@ -1118,6 +1135,15 @@ void armisa::exec_float_alu_instr() {
 	d_reg[insRd] = insFloatOperand1;
 	return;
       }
+
+      case 14: { // VNUM
+	res = op1 * op2 * -1;
+	FLOAT_TRACE(printf("0x%08x -- VNMUL(%.4lf[D%d]*%.4lf[D%d])=%.4lf[D%d]\n", \
+			 insAddress, op1, insRn, op2, insRm, res, insRd););
+
+	break;
+      }
+
     
       default: {
 	assert(0);
@@ -1273,17 +1299,65 @@ int armisa::exec_mem_operand_instr()
   add_use(m_uses_defs_idx, insRn);
   add_use(m_uses_defs_idx, insRs);
 
+#if THREAD_COMM
+  int bytes = 2 << (insSizeCode + 3);
+  int lower = insDataAddress;
+  int upper = insDataAddress + bytes;
+  
+  discrete_interval<uint64_t> range = discrete_interval<uint64_t>::right_open(lower, upper);
+  if(insL) {
+    int total_read = 0;
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+    
+    int ll = 0;
+    while(g_thread_comm && true) {
+      addr_owners_t::const_iterator it = g_thread_comm_producers.find(range);
+      if(it == g_thread_comm_producers.end())
+	break;
+
+      int new_lower = MAX(lower, (*it).first.lower());
+      int new_upper = MIN(upper, (*it).first.upper());
+      int read_bytes = (new_upper - new_lower);
+      lower = new_upper;
+      total_read += read_bytes;
+      g_thread_comm_consumers[m_core_no][(*it).second-1] += read_bytes;
+      
+      if(lower == upper)
+	break;
+      
+      range = discrete_interval<uint64_t>::right_open(lower, upper);
+    }
+    assert(total_read >= 0 && total_read <= bytes);
+  } else {
+    /* interval_map does not aggregate if value is 0 */
+    g_thread_comm_producers += make_pair(range, m_core_no+1);
+  }
+#endif
+
+  
   if(runstate != MidMultiple2S) {
-    if(insL)
+    if(insL) {
       stats.m_Loads+=1;
-    else
+    }
+    else {
       stats.m_Stores+=1;
+    }
   }
   
   if (insL) // Generic Loads
     {
-      u32_t* rd1 = insSUser ? &(raw_reg[insRd]) : &(Reg(insRd));
-      u32_t* rd2 = insSUser ? &(raw_reg[insRd+1]) : &(Reg(insRd+1));
+      u32_t* rd1 = NULL;
+      u32_t* rd2 = NULL;
+      if(insRt != -1 && insRt2 != -1) {
+      	assert(!insSUser);
+	rd1 = &(Reg(insRt));
+	rd2 = &(Reg(insRt2));
+	insRt = insRt2 = -1;
+      }	else {
+	rd1 = insSUser ? &(raw_reg[insRd]) : &(Reg(insRd));
+	rd2 = insSUser ? &(raw_reg[insRd+1]) : &(Reg(insRd+1));
+      }
       bool linkedf = insEXCF;
       //printf ("Run %x load %s  ldrex sz='%s' insSizeCode=%i addr=%x\n", in, exm, size, insSizeCode, insDataAddress);
       int rc = armisa_read1(insDataAddress, insSizeCode, FALSE, linkedf); // not opcode - load linked - ldrex.
@@ -1377,8 +1451,11 @@ int armisa::exec_mem_operand_instr()
 	    //double word
 	    //printf ("Run store insSizeCode=%i addr=%0x wd=%x\n", insSizeCode, insSizeCode, insDataAddress, Reg(insRd));
             assert(!insSUser);
-	    insAluResultHi = Reg(insRd+1);
-	    add_use(m_uses_defs_idx, insRd);
+	    assert(insRt != -1 && insRt2 != -1);
+	    insAluResult = Reg(insRt);
+	    insAluResultHi = Reg(insRt2);
+	    add_use(m_uses_defs_idx, insRt2);
+	    insRt = insRt2 = -1;
 	  }
           else insAluResultHi = 0;
 
@@ -2760,7 +2837,11 @@ void armisa::arm_swi_backdoor(int code) // SVC or TRAP backdoor.
       case 14: {
 #if TRACECOMM
 	g_tracecomm = !g_tracecomm;
-#endif	
+#endif
+#if THREAD_COMM
+	g_thread_comm = !g_thread_comm;
+#endif
+	
 	break;
       }
 

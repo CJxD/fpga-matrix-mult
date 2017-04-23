@@ -16,7 +16,7 @@ class arm_L2Cpl310 : public arm_ccache {
 
  public:
   tlm_utils::multi_passthrough_target_socket<arm_L2Cpl310, 64, PW_TLM_TYPES> controller_target;
-  void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
   // Since this class extends arm_ccache
   // at the same time as when we are constructing

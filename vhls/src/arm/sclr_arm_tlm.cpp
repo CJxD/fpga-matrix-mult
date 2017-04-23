@@ -273,7 +273,7 @@ void sclr_arm_tlm::add_core(armcore_tlm* core) {
 }
 
 // blocking transport method
-void sclr_arm_tlm::b_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
+void sclr_arm_tlm::b_access(int id, PRAZOR_GP_T &trans, sc_time &delay)
 {
   tlm_command cmd = trans.get_command();
 
@@ -397,7 +397,7 @@ void sclr_arm_tlm::b_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
       assert(0); // should never hit this
   }
   
-  delay += latency;  
+  AUGMENT_LT_DELAY(trans.ltd, delay, latency);
   
   trans.set_response_status(TLM_OK_RESPONSE);
 

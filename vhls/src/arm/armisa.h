@@ -52,6 +52,33 @@ class arm_mmu;
 #include "generic_branch_predictor.h"
 #include "arm_abt.h"
 
+
+#if THREAD_COMM
+#include <boost/icl/split_interval_map.hpp>
+
+template<typename Type>
+struct inplace_replace :
+  public boost::icl::identity_based_inplace_combine<Type> {
+
+  typedef inplace_replace<Type> type;
+
+  void operator()(Type& object, const Type& operand) const {
+    object = operand;
+  }
+
+  static void version(Type&) {
+  }
+};
+
+typedef boost::icl::interval_map<uint64_t, int,
+  boost::icl::partial_absorber,
+  /*ICL_COMPARE Compare =*/ ICL_COMPARE_INSTANCE(ICL_COMPARE_DEFAULT, uint64_t), 
+  /*ICL_COMBINE Combine =*/ ICL_COMBINE_INSTANCE(inplace_replace, int), 
+  /*ICL_SECTION Section =*/ ICL_SECTION_INSTANCE(boost::icl::inter_section, int)
+> addr_owners_t;
+
+#endif
+
 // armisa is the core class used by all the armisa models.
 class armisa 
 {
@@ -247,6 +274,8 @@ class armisa
     u32_t insRm;
     u32_t insRdHi;
     u32_t insRdLo;
+    u32_t insRt;
+    u32_t insRt2;
     u32_t insOffset;
     u32_t insP;
     u32_t insU;

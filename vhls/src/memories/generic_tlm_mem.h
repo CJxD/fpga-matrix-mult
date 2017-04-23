@@ -20,6 +20,7 @@
 #include "prazor.h"
 #include "tenos.h"
 #include "llsc_extension.h"
+#include "lt_delay.h"
 //#include "support/mamba_extension.h"
 #include "memloaders.h"
 
@@ -33,17 +34,6 @@
 // Load-locked/store-conditional.
 #define LLSC_ENABLE 2
 
-#ifndef POWER3
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
-#endif
 
 // One presence bit every 4 bytes?
 #define PBITS_PER_BYTE 4
@@ -247,14 +237,14 @@ class generic_tlm_mem:
   //u8_t *mem; // byte-addressed memory
  private:
   virtual void recompute_pvt_parameters() = 0; // Pure virtual in this generic model.
-  void access(PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void access(PRAZOR_GP_T &trans, sc_time &delay);
   // nonblocking transport interface prototype
-  tlm::tlm_sync_enum nb_access_fw(PW_TLM_PAYTYPE &trans, tlm::tlm_phase &phase, sc_time &delay);
+  tlm::tlm_sync_enum nb_access_fw(PRAZOR_GP_T &trans, tlm::tlm_phase &phase, sc_time &delay);
   // callback method for nonblocking transport
-  void peq_cb(PW_TLM_PAYTYPE &trans, const tlm::tlm_phase& ph);
+  void peq_cb(PRAZOR_GP_T &trans, const tlm::tlm_phase& ph);
 
   // blocking transport interface prototype
-  void b_access(PW_TLM_PAYTYPE &trans, sc_time &delay);  
+  void b_access(PRAZOR_GP_T &trans, sc_time &delay);  
 
   tlm_utils::peq_with_cb_and_phase<generic_tlm_mem, PW_TLM_TYPES> m_peq;
 
@@ -280,7 +270,7 @@ class generic_tlm_mem:
   //TLM-2 socket, defaults to 64-bits wide, power protocol
   tlm_utils::simple_target_socket<generic_tlm_mem, 64, PW_TLM_TYPES> port0;
   void loadme(const char *filename, bool elff, u64_t *entrypt=0);
-  bool get_direct_mem_ptr(PW_TLM_PAYTYPE&, tlm::tlm_dmi& dmi_data);
+  bool get_direct_mem_ptr(PRAZOR_GP_T&, tlm::tlm_dmi& dmi_data);
   void stat_report(const char *msg, FILE *fd, bool resetf=false);
   void set_bigendian(tlm::tlm_endianness v) { m_big_endian = v; } // This will be set from ELF load but this methods provides a manual override. The memory itself does not need this apart from load: it is in host-workstation u64_t order.
 

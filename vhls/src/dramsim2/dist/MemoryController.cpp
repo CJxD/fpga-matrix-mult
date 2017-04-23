@@ -71,6 +71,9 @@ MemoryController::MemoryController(MemorySystem *parent, std::ofstream *outfile)
 	//set here to avoid compile errors
 	currentClockCycle = 0;
 
+	m_freerunning_stats.activates = 0;
+	m_freerunning_stats.refreshes = 0;
+
 	//reserve memory for vectors
 	transactionQueue.reserve(TRANS_QUEUE_DEPTH);
 	bankStates = vector< vector <BankState> >(NUM_RANKS, vector<BankState>(NUM_BANKS));
@@ -288,6 +291,8 @@ void MemoryController::update()
 		//for readability's sake
 		unsigned rank = poppedBusPacket->rank;
 		unsigned bank = poppedBusPacket->bank;
+
+
 		switch (poppedBusPacket->busPacketType)
 		{
 			case READ_P:
@@ -297,7 +302,7 @@ void MemoryController::update()
 				{
 					PRINT(" ++ Adding Read energy to total energy");
 				}
-				burstEnergy[rank] += (IDD4R - IDD3N) * BL/2 * NUM_DEVICES;
+				burstEnergy[rank] += (IDD4R - IDD3N) * BL/2 * NUM_DEVICES_PER_RANK;
 				if (poppedBusPacket->busPacketType == READ_P) 
 				{
 					//Don't bother setting next read or write times because the bank is no longer active
@@ -370,7 +375,7 @@ void MemoryController::update()
 				{
 					PRINT(" ++ Adding Write energy to total energy");
 				}
-				burstEnergy[rank] += (IDD4W - IDD3N) * BL/2 * NUM_DEVICES;
+				burstEnergy[rank] += (IDD4W - IDD3N) * BL/2 * NUM_DEVICES_PER_RANK;
 
 				for (size_t i=0;i<NUM_RANKS;i++)
 				{
@@ -405,13 +410,16 @@ void MemoryController::update()
 
 				break;
 			case ACTIVATE:
+			  m_freerunning_stats.activates += 1; // There will be the same number of activates as precharges in the long run!
+
 				//add energy to account for total
 				if (DEBUG_POWER)
 				{
 					PRINT(" ++ Adding Activate and Precharge energy to total energy");
 				}
-				actpreEnergy[rank] += ((IDD0 * tRC) - ((IDD3N * tRAS) + (IDD2N * (tRC - tRAS)))) * NUM_DEVICES;
+				actpreEnergy[rank] += ((IDD0 * tRC) - ((IDD3N * tRAS) + (IDD2N * (tRC - tRAS)))) * NUM_DEVICES_PER_RANK;
 				activations += 1;
+				//freerunning_activations += 1;
 				//printf("%lli: activate %i %i\n", currentClockCycle, rank, bank);
 				bankStates[rank][bank].currentBankState = RowActive;
 				bankStates[rank][bank].lastCommand = ACTIVATE;
@@ -442,12 +450,14 @@ void MemoryController::update()
 				break;
 
 			case REFRESH:
+			        m_freerunning_stats.refreshes += 1;
+
 				//add energy to account for total
 				if (DEBUG_POWER)
 				{
 					PRINT(" ++ Adding Refresh energy to total energy");
 				}
-				refreshEnergy[rank] += (IDD5 - IDD3N) * tRFC * NUM_DEVICES;
+				refreshEnergy[rank] += (IDD5 - IDD3N) * tRFC * NUM_DEVICES_PER_RANK;
 
 				for (size_t i=0;i<NUM_BANKS;i++)
 				{
@@ -525,6 +535,7 @@ void MemoryController::update()
 			transactionQueue.erase(transactionQueue.begin()+i);
 
 			//create activate command to the row we just translated
+			//This should get elided in the queue under OpenPage policy but it is always manifestly created here as pending work - so this is the wrong plage to count actual activations.
 			BusPacket *ACTcommand = new BusPacket(ACTIVATE, transaction.address, newTransactionColumn, newTransactionRow,
 			                                 newTransactionRank, newTransactionBank, 0);
 			commandQueue.enqueue(ACTcommand);
@@ -638,7 +649,7 @@ void MemoryController::update()
 			{
 				PRINT(" ++ Adding IDD3N to total energy [from rank "<< i <<"]");
 			}
-			backgroundEnergy[i] += IDD3N * NUM_DEVICES;
+			backgroundEnergy[i] += IDD3N * NUM_DEVICES_PER_RANK;
 		}
 		else
 		{
@@ -649,7 +660,7 @@ void MemoryController::update()
 				{
 					PRINT(" ++ Adding IDD2P to total energy [from rank " << i << "]");
 				}
-				backgroundEnergy[i] += IDD2P * NUM_DEVICES;
+				backgroundEnergy[i] += IDD2P * NUM_DEVICES_PER_RANK;
 			}
 			else
 			{
@@ -657,7 +668,7 @@ void MemoryController::update()
 				{
 					PRINT(" ++ Adding IDD2N to total energy [from rank " << i << "]");
 				}
-				backgroundEnergy[i] += IDD2N * NUM_DEVICES;
+				backgroundEnergy[i] += IDD2N * NUM_DEVICES_PER_RANK;
 			}
 		}
 	}
@@ -765,6 +776,7 @@ void MemoryController::update()
 
 void MemoryController::resetStats() // Moved into separate function djg/cambridge.
 {
+  // cout << ("dramsim2: resetStats()\n");
   totalTransactions = 0;
   activations = 0;
   for (size_t i=0;i<NUM_RANKS;i++)

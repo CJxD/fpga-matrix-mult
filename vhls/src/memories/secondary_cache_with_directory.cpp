@@ -297,7 +297,7 @@ void secondary_cache_with_directory::cacheway::clear(sc_time& delay,
   if(Status[dmap] != dirty) 
     return;
 
-  PW_TLM_PAYTYPE nt, *trans =&nt; 
+  PRAZOR_GP_T nt, *trans =&nt; 
   trans->set_data_length(parent->geom.secondary_blocksize_bytes); 
   trans->set_byte_enable_length(0);
   trans->set_byte_enable_ptr(0); // All bytes to be operated on if ptr is null.
@@ -307,7 +307,7 @@ void secondary_cache_with_directory::cacheway::clear(sc_time& delay,
   // on eviction from L2 we also need to invalidate all potentional
   // lines from L1, by picking up column and doing test for tag on the rest
   POWER3(parent->pw_module_base::record_energy_use(Tags->m_read_energy_op, trans));
-  delay += Tags->m_sr_latency;
+  AUGMENT_LT_DELAY(trans->ltd, delay,  Tags->m_sr_latency);
   int laddr = (*Tags)[dmap]; // line addr
   int dir_col = 
     (laddr >> parent->geom.directory_panel_col_shift) 
@@ -368,6 +368,7 @@ void secondary_cache_with_directory::cacheway::clear(sc_time& delay,
 void secondary_cache_with_directory::cacheway::insert(u64_t addr, 
 						      int dmap, 
 						      u8_t *cline, 
+						      lt_delay& ltd,
 						      sc_time& delay,
 						      u64_t full_addr)
 {
@@ -382,7 +383,7 @@ void secondary_cache_with_directory::cacheway::insert(u64_t addr,
     case dirty: {
       // if address is different need to evict
       POWER3(parent->log_energy_use(Tags->m_read_energy_op));
-      delay += Tags->m_sr_latency;
+      AUGMENT_LT_DELAY(ltd, delay,  Tags->m_sr_latency);
       if(addr != (*Tags)[dmap]) {
 	CDTRC(printf("%s way=%i Evict " PFX64 " for " PFX64 "\n", 
 		     parent->name(), m_way, (*Tags)[dmap], addr));
@@ -396,11 +397,11 @@ void secondary_cache_with_directory::cacheway::insert(u64_t addr,
 
 
   POWER3(parent->log_energy_use(Tags->m_write_energy_op));  // Is this being double counted?
-  delay += Tags->m_sr_latency;
+  AUGMENT_LT_DELAY(ltd, delay,  Tags->m_sr_latency);
   Tags->write(dmap, addr);
   int ops = parent->geom.linesize * 8 / Data->width;
   POWER3(parent->log_energy_use(Data->m_write_energy_op * ops));  // Is this being double counted?
-  delay += Data->m_sr_latency * ops;
+  AUGMENT_LT_DELAY(ltd, delay,  Data->m_sr_latency * ops);
   memcpy(Data->read8p(dmap * parent->geom.linesize), cline, parent->geom.linesize);
   CDTRC(printf("%s: wrote data to address 0x%lx: ", parent->name(), addr); \
        for(int k = 0; k < parent->geom.linesize; k++)			\
@@ -421,7 +422,7 @@ int secondary_cache_with_directory::main_memory_lookup(u64_t line_addr,
   CDTRC(printf("%s: real address for 0x%lx is 0x%lx\n", 
 	       name(), line_addr, real_addr));
 
-  PW_TLM_PAYTYPE nt, *trans = &nt; 
+  PRAZOR_GP_T nt, *trans = &nt; 
   trans->set_data_length(geom.secondary_blocksize_bytes);
   trans->set_byte_enable_length(0);
   trans->set_byte_enable_ptr(0); // All bytes to be operated on if ptr is null.
@@ -465,6 +466,7 @@ secondary_cache_with_directory::cacheway *secondary_cache_with_directory::lookup
   int dmap,
   int loffset,
   u64_t* &datap1,
+  lt_delay& ltd,
   sc_time& delay,
   u64_t full_addr)
 {
@@ -485,7 +487,7 @@ secondary_cache_with_directory::cacheway *secondary_cache_with_directory::lookup
       break;
   }
 
-  delay += max_lookup_delay;
+  AUGMENT_LT_DELAY(ltd, delay,  max_lookup_delay);
 
   // do not service the miss
   if(!cline && !service)
@@ -507,7 +509,7 @@ secondary_cache_with_directory::cacheway *secondary_cache_with_directory::lookup
 
   cw = Cont[lru];
   lru = (lru == geom.ways - 1) ? 0 : lru + 1;
-  cw->insert(line_addr, dmap, cline10, delay, full_addr);
+  cw->insert(line_addr, dmap, cline10, ltd, delay, full_addr);
   
   // should hit this time
   cw->lookup(line_addr, dmap, &cline, delay);
@@ -532,7 +534,7 @@ void secondary_cache_with_directory::invalidate_line_in_primary(int core,
 								int addr,
 								sc_time &delay) 
 {
-  PW_TLM_PAYTYPE *trans = way_mm.allocate();
+  PRAZOR_GP_T *trans = prazor_gp_mm_t::instance()->allocate(); 
   way_extension way;
   trans->set_auto_extension<way_extension>(&way);
   way.way = w;
@@ -585,7 +587,7 @@ u64_t secondary_cache_with_directory::calculate_idir_index(u64_t line_addr,
 // id if is odd then request has been sent by data cache
 void secondary_cache_with_directory::b_transport(
   int id,
-  PW_TLM_PAYTYPE &trans,
+  PRAZOR_GP_T &trans,
   sc_time &delay)
 {
   sysc_assert(trans.get_data_length() <= 8);
@@ -643,7 +645,7 @@ void secondary_cache_with_directory::b_transport(
     assert(ext);
     u64_t *rdatap1;
 
-    cacheway* cw = lookup(true, line_addr, dmap, loffset, rdatap1, delay, addr);
+    cacheway* cw = lookup(true, line_addr, dmap, loffset, rdatap1, trans.ltd, delay, addr);
     
     if(id % 2 == 1) {
       directory_ty::panel dir_entry = directory->read(dir_row, dir_col);
@@ -669,7 +671,7 @@ void secondary_cache_with_directory::b_transport(
     stats.writes++;
 
     u64_t *wdatap = 0;
-    cacheway *rp = lookup(false, line_addr, dmap, loffset, wdatap, delay, -1);
+    cacheway *rp = lookup(false, line_addr, dmap, loffset, wdatap, trans.ltd, delay, -1);
 
     // it is not in the cache so we need to find a place where we will write
     if(!rp) {
@@ -677,12 +679,12 @@ void secondary_cache_with_directory::b_transport(
       lru = (lru == geom.ways - 1) ? 0 : lru + 1;
       // if line is dirty clean it to main memory
       POWER3(log_energy_use(cw->Tags->m_read_energy_op));  // Is this being double counted?
-      delay += cw->Tags->m_sr_latency;
+      AUGMENT_LT_DELAY(trans.ltd, delay,  cw->Tags->m_sr_latency);
       if(cw->Status[dmap] != cacheway::invalid && (*(cw->Tags))[dmap] == line_addr)
 	cw->clear(delay, dmap, addr);
       // set the correct tag
       POWER3(log_energy_use(cw->Tags->m_read_energy_op));  // Is this being double counted?
-      delay += cw->Tags->m_sr_latency;
+      AUGMENT_LT_DELAY(trans.ltd, delay,  cw->Tags->m_sr_latency);
       cw->Tags->write(dmap, line_addr);
       // initalize the whole line to zeros (could be unnecessary?)
       //memset(cw->Data->read8p(dmap * geom.linesize), 0, geom.linesize);

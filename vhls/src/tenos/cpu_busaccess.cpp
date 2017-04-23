@@ -119,7 +119,7 @@ void tmp_trace_bd(const char *msg)  // A backdoor where a uart print (or other s
 }
 
 // Instruction fetch may go to its own cache in Harvard mode.
-bool cpu_busaccess::instr_fetch64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, sc_time &delay)
+bool cpu_busaccess::instr_fetch64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, lt_delay &runahead)
 {
   lastfetch = memaddr;
   bool tf = traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_READ);
@@ -137,14 +137,14 @@ bool cpu_busaccess::instr_fetch64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, s
       tracebuffer.inc();
     }
   if (memaddr == 0xFFFFfffc) sim_done("Branched to PC==0xFFFFfffc"); // Zero was the arm reset vector so use this address now.
-  bool ok = mem_read(memaddr, rdata, delay, 0, 1, tf);
+  bool ok = mem_read(memaddr, rdata, runahead, 0, 1, tf);
   if (tf) printf("%s, wrapper: ok=%i ifetch at " PFX64 " rd=" PFX64 "\n", name(), ok, memaddr, rdata);
   return ok;
 }
 
 
 
-bool cpu_busaccess::eval_mem64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, sc_time &delay, bool lock)
+bool cpu_busaccess::eval_mem64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, lt_delay &runahead, bool lock)
 {
   bool ok = false;
   bool tf = traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_READ);
@@ -155,7 +155,7 @@ bool cpu_busaccess::eval_mem64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, sc_t
 	  assert(atomics == 1);
 	  assert(64 == atomic_width);
 	  atomics = 0;
-	  int ok_eval_xchg = eval_xchg(memaddr, atomic_wdata, rdata, 64, delay, tf);
+	  int ok_eval_xchg = eval_xchg(memaddr, atomic_wdata, rdata, 64, runahead, tf);
           switch(ok_eval_xchg) {
             case 0:
               ok = false;
@@ -178,7 +178,7 @@ bool cpu_busaccess::eval_mem64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, sc_t
     }
   else
     {
-      ok = mem_read(memaddr, rdata, delay, lock, 0, tf, 3, 8);
+      ok = mem_read(memaddr, rdata, runahead, lock, 0, tf, 3, 8);
       if (tf) printf("%s, ok=%i Read data64 at " PFX64 " rd=" PFX64 "\n", name(), ok, memaddr, rdata);
     }    
 
@@ -187,7 +187,7 @@ bool cpu_busaccess::eval_mem64(addr_t memaddr, u64_t &rdata, breakpt_t *bp, sc_t
 
 
 
-bool cpu_busaccess::eval_mem32(addr_t memaddr, u32_t &r, breakpt_t *bp, sc_time &delay, bool linked)
+bool cpu_busaccess::eval_mem32(addr_t memaddr, u32_t &r, breakpt_t *bp, lt_delay &runahead, bool linked)
 {
   u64_t rdata;
   bool ok, tf;
@@ -199,7 +199,7 @@ bool cpu_busaccess::eval_mem32(addr_t memaddr, u32_t &r, breakpt_t *bp, sc_time 
       assert(atomics == 1);
       assert(32 == atomic_width);
       atomics = 0;
-      int ok_eval_xchg = eval_xchg(memaddr, atomic_wdata, rdata, 32, delay, tf);
+      int ok_eval_xchg = eval_xchg(memaddr, atomic_wdata, rdata, 32, runahead, tf);
       switch(ok_eval_xchg) {
         case 0:
           ok = false;
@@ -223,13 +223,13 @@ bool cpu_busaccess::eval_mem32(addr_t memaddr, u32_t &r, breakpt_t *bp, sc_time 
     {
       int not64 = 2; // Set not64 to 2 for a 32 bit read. - This is used to avoid reading volatile registers in the adjacent int32.
       u64_t bus_address = (memaddr & ~3LLU) ^ (ENDIAN_FLIP & 4);
-      ok = mem_read(bus_address, rdata, delay, linked, 0, tf, not64, 4);
+      ok = mem_read(bus_address, rdata, runahead, linked, 0, tf, not64, 4);
       d = rdata;
     }
   else
     {
       u64_t bus_address = memaddr & ~7LLU;
-      ok = mem_read(bus_address, rdata, delay, linked, 0, tf, 3, 4);
+      ok = mem_read(bus_address, rdata, runahead, linked, 0, tf, 3, 4);
       d = rdata >> (8 *((ENDIAN_FLIP ^ memaddr) & 4));
     }
   if (ok)
@@ -242,7 +242,7 @@ bool cpu_busaccess::eval_mem32(addr_t memaddr, u32_t &r, breakpt_t *bp, sc_time 
 
 
 
-bool cpu_busaccess::eval_mem16(addr_t memaddr, u16_t &d, breakpt_t *bp, sc_time &delay, bool linkedf)
+bool cpu_busaccess::eval_mem16(addr_t memaddr, u16_t &d, breakpt_t *bp, lt_delay &runahead, bool linkedf)
 {
   u64_t rdata;
   bool tf = traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_READ);
@@ -251,9 +251,9 @@ bool cpu_busaccess::eval_mem16(addr_t memaddr, u16_t &d, breakpt_t *bp, sc_time 
     u64_t rdata1;
     u64_t rdata2;
 
-    bool ok = mem_read(memaddr & ~7LLU, rdata1, delay, linkedf, 0, tf, 3, 2);
+    bool ok = mem_read(memaddr & ~7LLU, rdata1, runahead, linkedf, 0, tf, 3, 2);
     if(!ok) return false;
-    ok = mem_read((memaddr & ~7LLU) + 8, rdata2, delay, linkedf, 0, tf, 3, 2);
+    ok = mem_read((memaddr & ~7LLU) + 8, rdata2, runahead, linkedf, 0, tf, 3, 2);
     if(!ok) return false;
 
     // Optional sign extension should be in individual cores ISS code.
@@ -270,7 +270,7 @@ bool cpu_busaccess::eval_mem16(addr_t memaddr, u16_t &d, breakpt_t *bp, sc_time 
     return ok;
   }
   else {
-    bool ok = mem_read(memaddr & ~7LLU, rdata, delay, linkedf, 0, tf, 3, 2);
+    bool ok = mem_read(memaddr & ~7LLU, rdata, runahead, linkedf, 0, tf, 3, 2);
     if (ok)
     {
       uint64_t shift = ((memaddr ^ ~ENDIAN_FLIP) & 7LLU) - (~ENDIAN_FLIP & 1);
@@ -285,7 +285,7 @@ bool cpu_busaccess::eval_mem16(addr_t memaddr, u16_t &d, breakpt_t *bp, sc_time 
 
 
 
-bool cpu_busaccess::eval_mem8(addr_t memaddr, u8_t &d, breakpt_t *bp, sc_time &delay, bool linkedf)
+bool cpu_busaccess::eval_mem8(addr_t memaddr, u8_t &d, breakpt_t *bp, lt_delay &runahead, bool linkedf)
 {
   u64_t r0;
   bool tf = traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_READ);
@@ -295,7 +295,7 @@ bool cpu_busaccess::eval_mem8(addr_t memaddr, u8_t &d, breakpt_t *bp, sc_time &d
     {
       int not64 = 2; // Do a 32-bit load and then adjust for byte here. 
       u64_t bus_address = (memaddr & ~3LLU) ^ (ENDIAN_FLIP & 4);
-      bool ok = mem_read(bus_address, r0, delay, linkedf, 0, tf, not64, 1);
+      bool ok = mem_read(bus_address, r0, runahead, linkedf, 0, tf, not64, 1);
       if (ok)
 	{
 	  // For a big-endian CPU, modelled on x86, ENDIAN_FLIP will be 7, meaning byte zero is at the top and needs the most shifting down. You might think the endianness would not effect byte loads and stores, and on a little-endian CPU like the x86 to get byte zero we should just mask and not shift, but this is wrong. The data has been installed in RAM from elf or other stores with the byte lanes within a 64 bit word permuted.
@@ -310,7 +310,7 @@ bool cpu_busaccess::eval_mem8(addr_t memaddr, u8_t &d, breakpt_t *bp, sc_time &d
     }    
   else
    {
-      bool ok  = mem_read(memaddr & ~7LLU, r0, delay, linkedf, 0, tf, 3, 1);
+      bool ok  = mem_read(memaddr & ~7LLU, r0, runahead, linkedf, 0, tf, 3, 1);
       if (ok)
 	{
 	  // For a big-endian CPU, modelled on x86, ENDIAN_FLIP will be 7, meaning byte zero is at the top and needs the most shifting down. You might think the endianness would not effect byte loads and stores, and on a little-endian CPU like the x86 to get byte zero we should just mask and not shift, but this is wrong. The data has been installed in RAM from elf or other stores with the byte lanes within a 64 bit word permuted.
@@ -336,7 +336,7 @@ void cpu_busaccess::atomic_prefix() // Prefix following load/store pair as atomi
 
 
 
-bool cpu_busaccess::set_mem64(addr_t memaddr, u64_t wdata, breakpt_t *bp, sc_time &delay, bool mamba_swp)
+bool cpu_busaccess::set_mem64(addr_t memaddr, u64_t wdata, breakpt_t *bp, lt_delay &runahead, bool mamba_swp)
 {
   assert(!mamba_swp);
   if (atomics) 
@@ -351,7 +351,7 @@ bool cpu_busaccess::set_mem64(addr_t memaddr, u64_t wdata, breakpt_t *bp, sc_tim
   else
     {
       if (traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_WRITE)) printf("Int64 store at " PFX64 " wd=" PFX64 "\n", memaddr, wdata);
-      return mem_write(memaddr,  0/*means 64 bits*/,  wdata, delay);
+      return mem_write(memaddr,  0/*means 64 bits*/,  wdata, runahead);
     }
 
   return true;
@@ -360,7 +360,7 @@ bool cpu_busaccess::set_mem64(addr_t memaddr, u64_t wdata, breakpt_t *bp, sc_tim
 
 
 
-bool cpu_busaccess::set_mem32(addr_t memaddr, u32_t wdata, breakpt_t *bp, sc_time &delay)
+bool cpu_busaccess::set_mem32(addr_t memaddr, u32_t wdata, breakpt_t *bp, lt_delay &runahead)
 {
   bool tf = traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_WRITE);
   if (atomics) 
@@ -379,7 +379,7 @@ bool cpu_busaccess::set_mem32(addr_t memaddr, u32_t wdata, breakpt_t *bp, sc_tim
       if (tf) printf("%s: Int32 store at " PFX64 " wd=%x\n", name(), memaddr, wdata);
       // If bit2 of address set then shift mask to top four bytes because the modelling
       // workstation (x86) is little endian (irrespective for modelled architecture (which might involve both)). But this is swapped again in mem_write!
-      return mem_write(memaddr&~4, 15 << (( memaddr) & 4), ((u64_t)wdata << 32)|(wdata << 0), delay);
+      return mem_write(memaddr&~4, 15 << (( memaddr) & 4), ((u64_t)wdata << 32)|(wdata << 0), runahead);
     }
 
   return true;
@@ -387,22 +387,22 @@ bool cpu_busaccess::set_mem32(addr_t memaddr, u32_t wdata, breakpt_t *bp, sc_tim
 
 
 
-bool cpu_busaccess::set_mem16(addr_t memaddr, u16_t wdata, breakpt_t *bp, sc_time &delay)
+bool cpu_busaccess::set_mem16(addr_t memaddr, u16_t wdata, breakpt_t *bp, lt_delay &runahead)
 {
   if (traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_WRITE)) printf("%s: Short store at " PFX64 " wd=%x\n", name(), memaddr, wdata);
   u64_t wd = ((u64_t)wdata << 16)|((u64_t)wdata << 0);
   wd |= wd << 32;
-  return mem_write(memaddr&~6,  3 << ((memaddr) & 6), wd, delay);
+  return mem_write(memaddr&~6,  3 << ((memaddr) & 6), wd, runahead);
 }    
 
 
-bool cpu_busaccess::set_mem8 (addr_t memaddr, uint8_t wdata, breakpt_t *bp, sc_time &delay)
+bool cpu_busaccess::set_mem8 (addr_t memaddr, uint8_t wdata, breakpt_t *bp, lt_delay &runahead)
 {
   u64_t wd = (wdata << 8)|(wdata << 0);
   wd |= wd << 16;
   wd |= wd << 32;
   if (traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_WRITE)) printf("%s: Byte store at " PFX64 " wd=%x  %c\n", name(), memaddr, wdata, isprint(wdata) ? wdata:' ');
-  return mem_write(memaddr&~7,  1 << ((memaddr) & 7), wd, delay);
+  return mem_write(memaddr&~7,  1 << ((memaddr) & 7), wd, runahead);
 }    
 
 // little debug code...
@@ -414,8 +414,9 @@ bool cpu_busaccess::set_mem8 (addr_t memaddr, uint8_t wdata, breakpt_t *bp, sc_t
 // Perform TLM read transaction on the main socket (excludes I-fetch if that is using its own socket).
 // This can be re-entrant but separate DMI records are kept to stop crosstalk between I and D when separate.
 // Set not64 to 2 for 32bit reads. We need this for reading some 32-bit I/O devices where me must not read the neighbouring register by accident.
-bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool linked, int skt, bool trace_flag, int not64, int size)
+bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, lt_delay &runahead, bool linked, int skt, bool trace_flag, int not64, int size)
 {
+  sc_time unused_delay = SC_ZERO_TIME;
   assert(skt >= 0 && skt < NO_CPU_BUSACCESS_SKTS);
   //if (tf) printf("%s: Read mem linked=%i skt=%i at " PFX64 "\n", name(), linked, skt, memaddr);
   stats.reads += 1;
@@ -453,7 +454,7 @@ bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool 
       dmi_ptr = DMI_records[skt]->data.get_dmi_ptr();
     }
 
-  if (dmi_ptr)
+  if (dmi_ptr)//With dmi, we have no ltd field in the trans, since there is no trans.
     {
       u64_t *bo = ((u64_t *)(dmi_ptr));
       //      BUSACCESS_MEMTRC(for (int i =0; i<32; i++) { if ((i&3)==0) printf("%04X: ", i*8); printf("%016llx ", bo[i]); if ((i&3)==3) printf("\n"); })
@@ -461,8 +462,8 @@ bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool 
 
       if (trace_flag) printf("DMI - Can get " PFX64 " from %p %llx to %llx at offset %llx  rdata=%lx\n", memaddr, dmi_ptr, DMI_records[skt]->data.get_start_address(), DMI_records[skt]->data.get_end_address(), memaddr - DMI_records[skt]->data.get_start_address(), rdata);
 
-      delay += DMI_records[skt]->read_latency.provide_estimate();
-      //TODO scale by length in bytes
+      AUGMENT_LT_DELAY(runahead, unused_delay, DMI_records[skt]->read_latency.provide_estimate());
+      //TODO scale by length in bytes when bursts are used
 
       stats.dmi_reads += 1;
       POWER3(pw_energy ee = DMI_records[skt]->read_energy.provide_estimate());
@@ -477,7 +478,7 @@ bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool 
       return true;
     }
 
-  PW_TLM_PAYTYPE  *trans, nt;
+  PRAZOR_GP_T  *trans, nt;
 
   if (!linked)
     {
@@ -495,6 +496,7 @@ bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool 
       assert(llsc);
       llsc->id = I2V(procID);
     }
+
 
   PW_TLM3(trans->set_customer_acct(*Customer_ids[current_alias]));
 
@@ -528,16 +530,25 @@ bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool 
 				      out_skt ? &bus_tracker1: &bus_tracker0
 				      )));
 
-  sc_time start_time = sc_time_stamp() + delay;
-  if (out_skt > 0) { (*ifetch_socket)->b_transport(*trans, delay); }
-  else initiator_socket->b_transport(*trans, delay);
-
+  lt_delay start_time_note = runahead;
+  trans->ltd = runahead;
+  if (out_skt > 0) { (*ifetch_socket)->b_transport(*trans, unused_delay); }
+  else initiator_socket->b_transport(*trans, unused_delay);
+  runahead = trans->ltd;
   //if (tf) printf("%s: %s mem at " PFX64 " done RD = " PFX64 " ... \n", name(), linked? "load-linked" : "load", memaddr, rdata);
 
 #if TRACECOMM
   trans->clear_extension(pid);
   delete(pid);
-#endif  
+#endif
+
+  llsc_extension *llsc;
+  trans->get_extension(llsc);
+  if(llsc) {
+    delete llsc;
+    trans->clear_extension(llsc);
+  }
+
   
   if (trans->is_response_error())
     {
@@ -545,12 +556,11 @@ bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool 
       //snprintf(txt, 1024, "Error from b_mem_access, mem_read, at " PFX64 " response status=%s lastfetchPC=" PFX64, memaddr, trans->get_response_string().c_str(), lastfetch);
       //SC_REPORT_ERROR("busaccess", txt);
       if (linked)   trans->release();
-      if (linked) payload_mm.free(trans);
 
       return false;
     } 
 
-  sc_time latency = sc_time_stamp() + delay - start_time;
+  sc_time latency = runahead - start_time_note;
 
   DMI_records[skt]->read_latency.record_measurement(latency);
   if (!disable_dmi /* && !DMI_records[skt]->data_valid */&& trans->is_dmi_allowed()) 
@@ -563,7 +573,11 @@ bool cpu_busaccess::mem_read(addr_t memaddr, u64_t &rdata, sc_time &delay, bool 
     }
   POWER3(PW_TLM3(trans->pw_terminus(m_module)));
 
-  if (linked) payload_mm.free(trans);
+  assert(unused_delay == SC_ZERO_TIME);
+
+  if (linked) {
+    trans->release();
+  }
   if (trace_fd)
     {
       fprintf(trace_fd, "%s at " PFX64 " D=" PFX64 "\n", (linked? "RL": "R"), memaddr, rdata);
@@ -601,13 +615,14 @@ struct byte_mask_s byte_write_masks[8]  =
 
 
 // A 1, indicating success, is written into GPR rt.  Otherwise, memory is not modified and a 0, indicating failure, is written into GPR rt.
-int cpu_busaccess::cpu_mem_store_conditional(addr_t memaddr, u64_t value, int width, sc_time &delay)
+int cpu_busaccess::cpu_mem_store_conditional(addr_t memaddr, u64_t value, int width, lt_delay &runahead)
 {
+  sc_time unused_delay = SC_ZERO_TIME;
   stats.writes += 1;
 #ifdef CYCLE_ACCURATE
   if (ea_mon) ea_mon->write(memaddr);
 #endif
-  PW_TLM_PAYTYPE *trans = llsc_payload_alloc();
+  PRAZOR_GP_T *trans = llsc_payload_alloc();
   PW_TLM3(trans->set_customer_acct(*Customer_ids[current_alias]));
   trans->acquire();
   trans->set_write();
@@ -662,30 +677,37 @@ int cpu_busaccess::cpu_mem_store_conditional(addr_t memaddr, u64_t value, int wi
 				      PW_TGP_ACCT_SRC |
 				      ((false)?0:PW_TGP_DATA|PW_TGP_LANES), 
 				      &bus_tracker0)));
-  
-  initiator_socket->b_transport(*trans, delay);
-  
+  trans->ltd = runahead;  
+  initiator_socket->b_transport(*trans, unused_delay);
+  runahead = trans->ltd;
+
+  trans->get_extension(llsc);
+  if(llsc) {
+    delete llsc;
+    trans->clear_extension(llsc);
+  }
+
   if (trans->is_response_error()) // Gives address error on failed src
     {
-      //trans->release();
-      payload_mm.free(trans);
-
+      int ret;
       if(trans->get_response_status() == tlm::TLM_GENERIC_ERROR_RESPONSE)
-          return 2;
+          ret = 2;
       else {
           if (traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_WRITE))
               printf("Store conditional at " PFX64 " failed: %s\n", memaddr, trans->get_response_string().c_str());
-          return 0;
+          ret = 0;
       }
+      trans->release();
+
+      return ret;
     }
 
   if (traceregions && traceregions->check(memaddr, TENOS_TRACE_CPU_WRITE))
     printf("%s: Store conditional w=%i at " PFX64 " ok\n", name(), width, memaddr);  
 
   POWER3(PW_TLM3(trans->pw_terminus(m_module)));
-  //trans->release();
-  payload_mm.free(trans);
-
+  trans->release();
+  assert(unused_delay == SC_ZERO_TIME);
   if (trace_fd)
     {
       fprintf(trace_fd, "WC at " PFX64 " D=" PFX64 "\n", memaddr, wdata);
@@ -696,7 +718,7 @@ int cpu_busaccess::cpu_mem_store_conditional(addr_t memaddr, u64_t value, int wi
 
 
 // Atomic exchange operation turns into bus-level loadlinked/store conditional.
-int cpu_busaccess::eval_xchg(addr_t memaddr, u64_t wdata, u64_t &rdata, int width, sc_time &delay, bool tf)
+int cpu_busaccess::eval_xchg(addr_t memaddr, u64_t wdata, u64_t &rdata, int width, lt_delay &runahead, bool tf)
 {
 #define XCHG(X)  if (tf) X
   XCHG(printf("%s: xchg start at " PFX64 " wdata=" PFX64 "\n", name(), memaddr, wdata));
@@ -705,7 +727,7 @@ int cpu_busaccess::eval_xchg(addr_t memaddr, u64_t wdata, u64_t &rdata, int widt
   while(1) // Implement xchg using ll/sc.  Keep going until success.
     {
       // First read old value with load linked/locked.     
-      bool ok1 = mem_read(memaddr & ~7LLU, rdata, delay, true, 0, tf);
+      bool ok1 = mem_read(memaddr & ~7LLU, rdata, runahead, true, 0, tf);
       XCHG(printf("%s: xchg load done at " PFX64 " rdata=" PFX64 "\n", name(), memaddr, rdata));
       if (!ok1)
 	{
@@ -716,11 +738,11 @@ int cpu_busaccess::eval_xchg(addr_t memaddr, u64_t wdata, u64_t &rdata, int widt
 	} 
 
       // Then store conditional
-      ok2 = cpu_mem_store_conditional(memaddr, wdata, width, delay);
+      ok2 = cpu_mem_store_conditional(memaddr, wdata, width, runahead);
       if (ok2) break; // Failure here means try again...
       XCHG(printf("xchg try again\n"));
       // Hold-off according to processor id!
-      delay += sc_time(procID, SC_US);
+      AUGMENT_LT_DELAY(runahead, unused_delay, sc_time(procID, SC_US));
     }
   if (width == 32 && ((memaddr ^ ENDIAN_FLIP) & 4)) rdata = rdata >> 32;
   XCHG(printf("%s: xchg end at " PFX64 " wdata=" PFX64 " rdata=" PFX64 "\n", name(), memaddr, wdata, rdata));
@@ -730,13 +752,13 @@ int cpu_busaccess::eval_xchg(addr_t memaddr, u64_t wdata, u64_t &rdata, int widt
 //
 // correct ? : The lane mask is a byte u8_t with lsb denoting the modelled-cpu's names (bit 0 is its ls-byte).
 //
-bool cpu_busaccess::mem_write(addr_t memaddr, u8_t mask, u64_t wdata, sc_time &delay)
+bool cpu_busaccess::mem_write(addr_t memaddr, u8_t mask, u64_t wdata, lt_delay &runahead)
 {
   stats.writes += 1;
 #ifdef CYCLE_ACCURATE
   if (ea_mon) ea_mon->write(memaddr);
 #endif
-  PW_TLM_PAYTYPE trans;
+  PRAZOR_GP_T trans;
   PW_TLM3(trans.set_customer_acct(*Customer_ids[current_alias]));
   u8_t bmask[8];  
   char bmask_txt[132];
@@ -776,8 +798,11 @@ bool cpu_busaccess::mem_write(addr_t memaddr, u8_t mask, u64_t wdata, sc_time &d
 				     PW_TGP_ACCT_SRC |
 				     ((true)?0:PW_TGP_DATA|PW_TGP_LANES), 
 				     &bus_tracker0)));
-
-  initiator_socket->b_transport(trans, delay);
+  sc_time unused_delay = SC_ZERO_TIME;
+  trans.ltd = runahead;
+  initiator_socket->b_transport(trans, unused_delay);
+  runahead = trans.ltd;
+  assert(unused_delay == SC_ZERO_TIME);
   POWER3(PW_TLM3(trans.pw_terminus(m_module)));
   if (trans.is_response_error())
     {
@@ -882,16 +907,14 @@ int cpu_busaccess::local_energy()
 
 
 // An allocater that ensures the llsc extension is present.
-PW_TLM_PAYTYPE *cpu_busaccess::llsc_payload_alloc()
+PRAZOR_GP_T *cpu_busaccess::llsc_payload_alloc()
 {
-  PW_TLM_PAYTYPE *r = payload_mm.allocate();
+  PRAZOR_GP_T *r = prazor_gp_mm_t::instance()->allocate();
   llsc_extension *ext;
   r->get_extension(ext);
-  if (!ext)
-    {
-      ext = new llsc_extension;
-      r->set_extension(ext);
-    }
+  assert(!ext);
+  ext = new llsc_extension;
+  r->set_extension(ext);
   return r;
 }
 

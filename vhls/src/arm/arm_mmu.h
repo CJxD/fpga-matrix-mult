@@ -6,6 +6,7 @@
 
 #include "base_mmu.h"
 
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
@@ -14,17 +15,6 @@
 #include "tlm_utils/simple_initiator_socket.h"
 #include "tlm_utils/simple_target_socket.h"
 
-
-
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 class armisa;
 
@@ -149,8 +139,8 @@ class arm_mmu : public base_mmu, public sc_module
     tlm_utils::simple_initiator_socket<arm_mmu, 64, PW_TLM_TYPES> cp15_initiator;
     tlm_utils::multi_passthrough_initiator_socket<arm_mmu, 64, PW_TLM_TYPES> memories_initiator;
 
-    void b_cp15_access(PW_TLM_PAYTYPE& trans, sc_time &delay);
-    void b_core_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay);
+    void b_cp15_access(PRAZOR_GP_T& trans, sc_time &delay);
+    void b_core_access(int id, PRAZOR_GP_T &trans, sc_time &delay);
 
     bool cp15_op(u4_t cpr, u4_t crm, u32_t& data, u3_t op1, u3_t op2, bool read);
 

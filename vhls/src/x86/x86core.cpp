@@ -48,10 +48,7 @@ x86core::x86core(sc_core::sc_module_name names,
    set_clock_frequencies(fsb_period, fsb_period);
    cycles = 0;
    corestats.reset();
-  lt_i_delay = SC_ZERO_TIME;
-  lt_d_delay = SC_ZERO_TIME;
-
-  SC_THREAD(run);
+   SC_THREAD(run);
 
   char txt[20];
   sprintf(txt, "x86core_%d", procID);
@@ -164,7 +161,7 @@ int x86core::simulator_cmd(int cmd, int arg0, int arg1, u32_t *rp)
   if (cmd == TENOS_CMD_SIM_DONE)
     {
       printf("EXIT %i\n", procID);
-      m_qk.sync();
+      master_runahead.force_sync();
       //if (sc_time_stamp() == sc_core::sc_time_stamp::sc_time_max()) std::cout <<  name() << ": Core exited at max SystemC time\n";
       std::cout <<  name() << ": Core exited at " << sc_time_stamp() << std::endl;
       if (this->stop_sim_on_exit) busaccess.sim_done("Primary/boot core exited"); // Stop simulation on this core exit
@@ -182,8 +179,10 @@ void x86core::run()
   while (!busaccess.core_finished) {
     if (halted)
       {
-	m_qk.set(sc_time(1.0, SC_US)); // for now
-	m_qk.sync();
+	//m_qk.set(sc_time(1.0, SC_US)); // for now
+	master_runahead += sc_time(1.0, SC_US);
+	//m_qk.sync();
+	master_runahead.perhaps_sync();
 	continue;
       }
 

@@ -49,7 +49,7 @@ int g_es_verbosef = 1;
 int g_es_num_keys = 1000;
 int cores = 1;
 int g_es_loops = 1;
-
+int g_using_inner_looping_flag = 0; // Application sets this flag if it is handling g_es_loops itself.
 int start_shot_no;
 
 
@@ -112,7 +112,7 @@ unsigned int arm_pmu_backdoor_icount()
 }
 
 
-typedef unsigned int energy_t;
+typedef unsigned long int energy_t;
 #define N_ENERGIES 2
 #if USE_SPEEDO
 energy_t energies[N_ENERGIES];
@@ -211,8 +211,7 @@ void clib_test()
 
 void snap_start()
 {
-  start_shot_no = arm_backdoor_stats_take_snapshot();
-  #if GET_ENERGY_FROM_PROBE
+#if GET_ENERGY_FROM_PROBE
   energy_t evec[N_ENERGIES];
   energy_meters(evec, 0);
   unsigned int start_time = tenos_clock(0);
@@ -221,17 +220,16 @@ void snap_start()
   SPEEDO_CHKPT(0);
   energies[0] = READ_SPEEDO_CTX1(SPEEDO_CTX_REG_GLOBAL_ENERGY);
   energies[1] = READ_SPEEDO_CTX1(SPEEDO_CTX_REG_LOCAL_ENERGY);
-  printf("Current energies are %i,%i\n", energies[0], energies[1]);
   start_time = READ_SPEEDO_CTX1(SPEEDO_CTX_REG_LOCAL_TIME);
 #endif
-
+  start_shot_no = arm_backdoor_stats_take_snapshot();
 }
 
 void snap_end()
 {
-     int end_shot_no = arm_backdoor_stats_take_snapshot();
-   //printf("energyshim: Start/End shot nos %i/ %i\n", start_shot_no, end_shot_no);
-   arm_backdoor_print_csv_stats(end_shot_no, start_shot_no);
+  int end_shot_no = arm_backdoor_stats_take_snapshot();
+  //printf("energyshim: Start/End shot nos %i/ %i\n", start_shot_no, end_shot_no);
+  arm_backdoor_print_csv_stats(end_shot_no, start_shot_no);
 
 
 #if GET_ENERGY_FROM_PROBE
@@ -257,10 +255,11 @@ void snap_end()
    unsigned int end_time = READ_SPEEDO_CTX1(SPEEDO_CTX_REG_LOCAL_TIME);
    energy_t ee0 = READ_SPEEDO_CTX1(SPEEDO_CTX_REG_GLOBAL_ENERGY)-energies[0];
    energy_t ee1 = READ_SPEEDO_CTX1(SPEEDO_CTX_REG_LOCAL_ENERGY)-energies[1];
-   unsigned int units = READ_SPEEDO(SPEEDO_REG_ENERGY_UNITS);
+   unsigned long int units = READ_SPEEDO(SPEEDO_REG_ENERGY_UNITS);
+
    double core = ee1/((double)units);
    double total = ee0/((double)units);
-   unsigned int tt = end_time-start_time;
+   unsigned long int tt = end_time-start_time;
    double power = total/((double)tt/(double)1e6);
    printf("CSV,%s,%s,%i,%i,%i,%i,%u,%u\n", g_es_title, g_es_mode, cores, g_es_loops, g_es_num_keys, tt, ee0, ee1);
    printf("                 TIMING + ENERGY INFORMATION\n");
@@ -268,9 +267,9 @@ void snap_end()
 	  tt, start_time, end_time);
    printf("Core energy                       : %lf J\n",
 	  core);
-   printf("Total energy                      : %f J\n",
+   printf("Total energy                      : %lf J\n",
 	  total);
-   printf("Average power                     : %f W\n",
+   printf("Average power                     : %lf W\n",
 	  power);
    printf("\n");
 #endif
@@ -368,12 +367,19 @@ int main(int argc, const char **argv)
   if (vd) printf("START WARMUP\n");
   bm_init(argc, argv);
 
-  snap_start();
+  //snap_start();
    int llx;
    if (vd) printf("START MAIN LOOPS\n");
-   for (llx=0; llx<g_es_loops; llx++) bm_main(argc, argv);
+
+   
+   for (llx=0; llx<g_es_loops; llx++) 
+     {
+       bm_main(argc, argv);
+       if (g_using_inner_looping_flag) break; // run only once when this flag holds.
+     }
+
    if (vd) printf("DONE\n");
-   snap_end();
+   //snap_end();
   SOCDAM_KILL_SIM(0); // Cause PRAZOR simulator to exit - may need to wait for interrupt output to drain before exiting.
   return 0;
 }

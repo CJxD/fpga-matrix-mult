@@ -322,7 +322,7 @@ uart64_cbg::uart64_cbg(sc_module_name p_name, bool use_x11, bool u) :
 
 
 
-void uart64_cbg::b_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
+void uart64_cbg::b_access(int id, PRAZOR_GP_T &trans, sc_time &delay_)
 {
   tlm::tlm_command cmd = trans.get_command();
 
@@ -482,9 +482,9 @@ void uart64_cbg::b_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
 	  }
       }
   
-  delay += latency;
-  
-  
+  AUGMENT_LT_DELAY(trans.ltd, delay, latency);
+  //cout << "     uart lt_delay " << trans.ltd << "\n";
+ 
   trans.set_response_status(rc);
 #if PW_TLM_PAYLOAD > 0
   POWER3(l_agent.record_energy_use(pw_energy(1.0e-3 * 1.0e-6, PW_JOULE), &trans));

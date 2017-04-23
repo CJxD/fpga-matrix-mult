@@ -1,5 +1,5 @@
 //
-// Arm Generic Interrupter in SystemC
+// ARM Generic Interrupter in SystemC
 // Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
 // (C) 2014 DJ Greaves - University of Cambridge Computer Laboratory.
 
@@ -113,7 +113,7 @@ gic_arm_tlm::gic_arm_tlm(sc_module_name name, int n_cpus) :   // constructor
 
 
 // blocking transport method
-void gic_arm_tlm::b_access(int cpuID, PW_TLM_PAYTYPE &trans, sc_time &delay)
+void gic_arm_tlm::b_access(int cpuID, PRAZOR_GP_T &trans, sc_time &delay)
 {
   tlm::tlm_command cmd = trans.get_command();
 
@@ -210,9 +210,9 @@ void gic_arm_tlm::b_access(int cpuID, PW_TLM_PAYTYPE &trans, sc_time &delay)
 	
       }
   
-  delay += latency;
-  
-  
+
+  AUGMENT_LT_DELAY(trans.ltd, delay,  latency);
+    
   trans.set_response_status(rc);
 #if PW_TLM_PAYLOAD > 0
   POWER3(l_agent.record_energy_use(pw_energy(1.0e-3 * 1.0e-6, PW_JOULE), &trans));

@@ -82,7 +82,7 @@ void hammer_cache64::operate_miss_type(cacheway* c,
 }
 
 void hammer_cache64::probe_message(PW_TLM_PAYTYPE &trans, 
-				   sc_time &delay, 
+				   sc_time &delay_, 
 				   u64_t addr, 
 				   probe_msg* probem)
 {  
@@ -201,9 +201,11 @@ void hammer_cache64::probe_message(PW_TLM_PAYTYPE &trans,
 
 	trans.release();
 
-	sc_time delay = SC_ZERO_TIME;
+	/* TODO: If we ever get to using this implementation
+	 * of cache need to properly propagate delays */
+	sc_time delay__ = SC_ZERO_TIME;  
 	tlm_phase ph = BEGIN_REQ;
-	inita_socket->nb_transport_fw(*ackm, ph, delay);
+	inita_socket->nb_transport_fw(*ackm, ph, delay__);
 
 	return;
       }
@@ -214,11 +216,13 @@ void hammer_cache64::probe_message(PW_TLM_PAYTYPE &trans,
   
   // look for the line in the cache
   u8_t *cline = 0;
-  sc_time max_lookup_delay = SC_ZERO_TIME;
+  /* TODO: If we ever get to using this implementation
+   * of cache need to properly propagate delays */
+  sc_time max_lookup_delay__ = SC_ZERO_TIME;
   cacheway *cw = 0;
   for(int w = 0; w < geom.ways; w++) {
     cw = Cont[w];
-    if(cw->lookup(line_addr, dmap, &cline, max_lookup_delay))
+    if(cw->lookup(line_addr, dmap, &cline, max_lookup_delay__))
       break;	
   }
 
@@ -474,7 +478,7 @@ void hammer_cache64::moesi_peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
     trans.set_byte_enable_ptr(new_lanes);
   }
 
-  sc_time delay = SC_ZERO_TIME;
+  lt_sc_time delay = SC_ZERO_TIME;
 
   u64_t addr = probem->cache_addr;
   assert(geom.linesize <= trans.get_data_length());

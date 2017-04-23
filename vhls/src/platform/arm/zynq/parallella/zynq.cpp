@@ -4,6 +4,12 @@
 
 using namespace sc_core;
 
+#if THREAD_COMM
+extern addr_owners_t g_thread_comm_producers;
+extern uint64_t** g_thread_comm_consumers;
+#endif
+
+
 // Constructor
 coreunit::coreunit(
   sc_core::sc_module_name p_name, 
@@ -355,9 +361,9 @@ top::top(
   int_spi127("int_spi127") {
   
     dramsim_ini_t *ini = new dramsim_ini_t;
-    ini->set_as_an_example(1024); // This 1024 is ignored.
-    ini->deviceIniFilename = device_ini; //"../dramsim2/dist/system.ini.example";
-    ini->systemIniFilename = system_ini; //"../dramsim2/dist/ini/DDR2_micron_16M_8b_x8_sg3E.ini";
+    ini->set_as_an_example(0, 1024);     // The first arg is ignored but the second is the size in Megabytes.
+    ini->deviceIniFilename = device_ini; // vhls/boards/parallella/DDR3_micron_32M_8B_x32_parallella.ini
+    ini->systemIniFilename = system_ini; // vhls/boards/parallella/dramsim.ini
 
     memory0 = new dramsim_sc_wrapper("memory0",  0, ini);
     
@@ -717,11 +723,8 @@ top::top(
     UARTS[0]->IRQ(int_spi59);
     SDIO->IRQ(int_spi79);
     UARTS[1]->IRQ(int_spi82);
-    
     char line[444];
-    printf("WE ARE HERE2222 %s -- %s\n", UARTS[uu]->name(), g_name);
     snprintf (line, 444, "%s.%s.txt", g_name, UARTS[uu]->name());
-    printf("WE ARE HERE3333\n");
     UARTS[uu]->open_log_file(line);
 }
 
@@ -734,6 +737,13 @@ const char* top::kind() {
 }
     
 top::~top(void) {
+#if THREAD_COMM
+  for(int i = 0; i < n_cores; ++i) {
+    free(g_thread_comm_consumers[i]);
+  }
+  free(g_thread_comm_consumers);
+#endif
+
 }
     
 void top::stat_report(const char *msg, FILE *fd, bool resetf) {
@@ -772,7 +782,24 @@ void top::stat_report(const char *msg, FILE *fd, bool resetf) {
       fprintf(hit_f, "%ld\n",memory0->m_hit_reads[i]);
     }
   }
-#endif    
+#endif 
+#if THREAD_COMM
+  FILE *comm_f = fopen("comm_matrix.csv", "w");
+  if(comm_f != NULL) {
+    fprintf(comm_f, ",");
+    for(int i = 0; i < n_cores; ++i) 
+      fprintf(comm_f, "C%d,", i);
+    fprintf(comm_f, "\n");
+    for(int i = 0; i < n_cores; ++i) {
+      fprintf(comm_f, "C%d,", i);
+      for(int j = 0; j < n_cores; ++j) {
+	fprintf(comm_f, "%lu,", g_thread_comm_consumers[i][j]);
+      }
+      fprintf(comm_f, "\n");
+    }
+  }
+  fclose(comm_f);
+#endif
   
   if(SDIO) SDIO->stat_report(msg, fd, resetf);
   //if (resetf) stats.reset();
@@ -790,6 +817,18 @@ extern "C" {
       bool harvardf,
       const char* device_ini,
       const char* system_ini) {
+
+#if THREAD_COMM
+    for(int i = 0; i < n_cores; ++i) {
+      g_thread_comm_consumers = (uint64_t**)malloc(sizeof(uint64_t*)*n_cores);
+      for(int j = 0; j < n_cores; ++j) {
+	g_thread_comm_consumers[j] = (uint64_t*)malloc(sizeof(uint64_t)*n_cores);
+	for(int k = 0; k < n_cores; ++k)
+	  g_thread_comm_consumers[j][k] = 0;
+      }
+    }
+#endif    
+    
     return new top(p_name,
 		   n_cores,
 		   core_frequency,

@@ -45,7 +45,7 @@ arm_cp15::arm_cp15(sc_module_name name, u8_t core_no) :
     target_socket.register_b_transport(this, &arm_cp15::b_access);
 }
 
-void arm_cp15::b_access(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
+void arm_cp15::b_access(int id, PRAZOR_GP_T& trans, sc_time &delay) {
     cp_request_extension* ext = 0;
     trans.get_extension(ext);
     assert(ext);
@@ -851,7 +851,7 @@ void arm_cp15::cache_control_msg(u3_t cache, u1_t domain, u1_t shareable, u32_t 
         ext.stop = stop;
         ext.address = address;
 
-        PW_TLM_PAYTYPE trans;
+        PRAZOR_GP_T trans;
         trans.set_extension(&ext);
         trans.set_byte_enable_length(0);
         trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
@@ -884,7 +884,7 @@ void arm_cp15::mmu_control_msg(
     ext.op = op;
     ext.ty = ty;
     
-    PW_TLM_PAYTYPE trans;
+    PRAZOR_GP_T trans;
     trans.set_extension(&ext);
     trans.set_byte_enable_length(0);
     trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);

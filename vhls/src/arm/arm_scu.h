@@ -53,7 +53,7 @@ class arm_scu : public smallramp, public scu
     tlm_utils::multi_passthrough_target_socket<arm_scu, 64, PW_TLM_TYPES> arm_target_socket;
     tlm_utils::multi_passthrough_initiator_socket<arm_scu, 64, PW_TLM_TYPES>* arm_initiator_socket;
 
-    void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+    void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
     // if arm_initiator_socket is NULL it will be allocated
     // if it is not NULL this method does nothing

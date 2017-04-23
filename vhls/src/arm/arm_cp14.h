@@ -7,6 +7,7 @@
 
 // ARM coprocessor number 14
 
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
@@ -14,15 +15,6 @@
 #include "tlm_utils/multi_passthrough_initiator_socket.h"
 #include "tlm_utils/multi_passthrough_target_socket.h"
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 class armcore_tlm;
 
@@ -46,7 +38,7 @@ class arm_cp14 : public smallramp, public sc_module
     // connecting port
     tlm_utils::multi_passthrough_target_socket<arm_cp14, 64, PW_TLM_TYPES> cp14_target_socket;
 
-    void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+    void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
 #ifdef TLM_POWER3
     // TODO: MP to see with DJG how to account for power in this unit

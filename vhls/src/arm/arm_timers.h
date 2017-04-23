@@ -4,6 +4,7 @@
 #ifndef __ARM_TIMERS__
 #define __ARM_TIMERS__
 
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
@@ -35,16 +36,6 @@
 #define SWDT_BASE_ADDR 0xF8005000
 #define SWDT_LENGTH 0x100
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
-
 // Base timer
 // All timer should extend this class
 class base_timer : public sc_module
@@ -71,7 +62,7 @@ class arm_twd : public base_timer
   // connecting port
   tlm_utils::multi_passthrough_target_socket<arm_twd, 64, PW_TLM_TYPES> twd_target0;
   
-  void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
   void run();
   void run_watchdog();
@@ -177,7 +168,7 @@ class arm_ttc : public base_timer
   // connecting port
   tlm_utils::multi_passthrough_target_socket<arm_ttc, 64, PW_TLM_TYPES> ttc_target0;
   
-  void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
   void run_timer1();
   void run_timer2();
@@ -230,7 +221,7 @@ class arm_glbt : public base_timer
   sc_out<bool> IRQ[GIC_MAX_N_CPUS];
 
   tlm_utils::multi_passthrough_target_socket<arm_glbt, 64, PW_TLM_TYPES> glb_target;
-  void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
   void run();
 
@@ -269,7 +260,7 @@ class arm_swdt : public base_timer
   arm_swdt(sc_module_name);
 
   tlm_utils::multi_passthrough_target_socket<arm_swdt, 64, PW_TLM_TYPES> swdt_target;
-  void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
   void run();
 

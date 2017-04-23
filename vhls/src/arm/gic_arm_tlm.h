@@ -1,5 +1,5 @@
 //
-// Arm Generic Interrupter in SystemC
+// ARM Generic Interrupter in SystemC
 // Copyright (C) 2015 XPARCH, Ltd. <info@xparch.com>
 // (C) 2014 DJ Greaves - University of Cambridge Computer Laboratory.
 // (C) 2014 DJ Greaves and M Puzovic.
@@ -34,6 +34,7 @@ will.
 #include <unistd.h>
 #include <pthread.h>
 
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
@@ -151,15 +152,6 @@ will.
 
 
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 
 class gic_arm_tlm : public sc_module
@@ -174,7 +166,7 @@ class gic_arm_tlm : public sc_module
   const char *kind();
 
   // blocking transport
-  void b_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int id, PRAZOR_GP_T &trans, sc_time &delay);
 
 
 #define GIC_INTERRUPT_LIMIT 1024

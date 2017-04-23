@@ -17,23 +17,11 @@
 
 #include <assert.h>
 #include "systemc.h"
+#include "prazor.h"
 #include "tenos.h"
 //#include "gdbrsp.h"
 
 #include "cpu_busaccess.h"
-
-
-#ifndef POWER3
-#ifdef TLM_POWER3
-#include <tlm_power>
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
-#endif
 
 
 

@@ -29,6 +29,7 @@ of L2 is 20 cycles.
 #include "tlm_utils/multi_passthrough_target_socket.h"
 #include "tlm_utils/simple_target_socket.h"
 #include "tlm_utils/peq_with_cb_and_phase.h"
+#include "prazor.h"
 #include "tenos.h"
 #include "memories_extensions.h"
 
@@ -42,17 +43,6 @@ of L2 is 20 cycles.
 
 #include <boost/parameter/name.hpp>
 
-#ifdef TLM_POWER3
-#include "tlm_power.h"
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-typedef int pw_customer_acct; /* use a simple int as a placeholder */
-#define PW_TLM3(X)
-#define POWER3(X)
-#endif
 
 
 #define WBTRC(X)\

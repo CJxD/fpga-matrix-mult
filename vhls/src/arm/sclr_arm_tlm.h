@@ -19,7 +19,7 @@ will.
 
 
 */
-
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
@@ -32,15 +32,6 @@ will.
 #define SLCR_BASE_ADDR 0xF8000000
 #define SLCR_LAST_REG_OFFSET 0xB74
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 class sclr_arm_tlm : public smallramp, public sc_module
 #ifdef TLM_POWER3
@@ -52,7 +43,7 @@ class sclr_arm_tlm : public smallramp, public sc_module
   const char *kind();
 
   // blocking transport
-  void b_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int id, PRAZOR_GP_T &trans, sc_time &delay);
 
  public:
 

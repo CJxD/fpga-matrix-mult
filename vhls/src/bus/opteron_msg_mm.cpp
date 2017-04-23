@@ -14,14 +14,14 @@ opteron_msg_mm::opteron_msg_mm()
 {
 }
 
-PW_TLM_PAYTYPE* opteron_msg_mm::allocate() {
+PRAZOR_GP_T* opteron_msg_mm::allocate() {
 #ifdef OPTERON_DEBUG
   lck.lock();
   fprintf(stdout, "---------- Called allocate(), #trans = %d\n", ++count);
   lck.unlock();
 #endif
 
-  PW_TLM_PAYTYPE* ptr;
+  PRAZOR_GP_T* ptr;
   lck.lock();
   if(free_list) {
     ptr = free_list->trans;
@@ -29,7 +29,11 @@ PW_TLM_PAYTYPE* opteron_msg_mm::allocate() {
     free_list = free_list->next;
   }
   else
-    ptr = new (PW_TLM_PAYTYPE)(this);
+    {
+      assert(0);
+      // need help with this line to get it to compile : ptr = new (PRAZOR_GP_T)(this);
+      ptr = 0;
+    }
   lck.unlock();
 
   // MP: I thought that I do some extra release that decrements the ref count
@@ -44,7 +48,7 @@ PW_TLM_PAYTYPE* opteron_msg_mm::allocate() {
   return ptr;
 }
 
-void opteron_msg_mm::free(PW_TLM_PAYTYPE* trans) 
+void opteron_msg_mm::free(PRAZOR_GP_T* trans) 
 {
 #ifdef OPTERON_DEBUG
   lck.lock();

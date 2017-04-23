@@ -32,8 +32,9 @@ class OR1200F :
 {
   remotecontrol_or1k debug_controller;
   bool *ext_interrupt;
-  sc_time lt_i_delay;
-  sc_time lt_d_delay;
+  lt_delay master_runahead;
+  lt_delay lt_i_delay;
+  lt_delay lt_d_delay;
   u32_t where_last;
   u32_t eval_insn(oraddr_t a, int*);
   void run();
@@ -51,7 +52,7 @@ class OR1200F :
   void set_mem16(oraddr_t a, u16_t d, int*);
   void set_mem8(oraddr_t, uint8_t, int*);
   void sim_done(const char *msg);
-  tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
+  //tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
   void decode();
   void corepause(int us, u32_t addr);  // Pause CPU for this time interval
   void atomic_prefix(); // Prefix following load/store pair as atomic.
@@ -76,7 +77,7 @@ class OR1200F :
 
   ins_fetcher_t(COREISA_IF *parent) : parent(parent) { cached_adr = 1; // an invalid address
     };
-    void fetch(u32_t adr, u32_t &i, sc_time &lt_busdelay);
+    void fetch(u32_t adr, u32_t &i, lt_delay &lt_busdelay);
   } ins_fetcher;
 
 

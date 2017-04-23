@@ -13,7 +13,7 @@
 #include "tlm_utils/multi_passthrough_initiator_socket.h"
 #include "tlm_utils/multi_passthrough_target_socket.h"
 #include "tlm_utils/peq_with_cb_and_phase.h"
-
+#include "prazor.h"
 #include "tenos.h"
 
 #include "opteron_messages.h"
@@ -30,15 +30,6 @@
 #endif
 
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 class crossbar :
   public sc_module
@@ -56,11 +47,11 @@ class crossbar :
   int dest_clk_cycles;
 
   // Helper methods
-  void sri_incoming(sri_msg* msg, PW_TLM_PAYTYPE& t);
-  void req_incoming(req_msg* msg, PW_TLM_PAYTYPE& t);
-  void probe_incoming(probe_msg* msg, PW_TLM_PAYTYPE& t);
-  void ack_incoming(ack_msg* msg, PW_TLM_PAYTYPE& t);
-  void unblock_incoming(unblock_msg* msg, PW_TLM_PAYTYPE& t);
+  void sri_incoming(sri_msg* msg, PRAZOR_GP_T& t);
+  void req_incoming(req_msg* msg, PRAZOR_GP_T& t);
+  void probe_incoming(probe_msg* msg, PRAZOR_GP_T& t);
+  void ack_incoming(ack_msg* msg, PRAZOR_GP_T& t);
+  void unblock_incoming(unblock_msg* msg, PRAZOR_GP_T& t);
 
   std::map<uint32_t, uint32_t> route_table;    
 
@@ -82,7 +73,7 @@ class crossbar :
   sc_mutex* ml;
 
   bool req_busy;
-  std::queue<PW_TLM_PAYTYPE*> req_queue;
+  std::queue<PRAZOR_GP_T*> req_queue;
 
   std::set<u64_t>* cb_address_table;
   std::map<u64_t, u64_t>* cb_address_map;
@@ -109,20 +100,20 @@ class crossbar :
 	   int);
 
   // TLM-2 blocking transport method
-  bool get_direct_mem_ptr(int n, PW_TLM_PAYTYPE&, tlm::tlm_dmi& dmi_data);
-  //void b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay);
+  bool get_direct_mem_ptr(int n, PRAZOR_GP_T&, tlm::tlm_dmi& dmi_data);
+  //void b_transport(int id, PRAZOR_GP_T& trans, sc_time &delay);
 
   tlm::tlm_sync_enum nb_transport_fw(int n,
-				     PW_TLM_PAYTYPE& trans,
+				     PRAZOR_GP_T& trans,
 				     tlm::tlm_phase& phase,
 				     sc_time& delay);
 
   tlm::tlm_sync_enum nb_transport_bw(int n,
-				     PW_TLM_PAYTYPE& trans,
+				     PRAZOR_GP_T& trans,
 				     tlm::tlm_phase& phase,
 				     sc_time& delay);
 
-  void peq_cb(PW_TLM_PAYTYPE& trans, const tlm::tlm_phase& ph);
+  void peq_cb(PRAZOR_GP_T& trans, const tlm::tlm_phase& ph);
 
   void init_address_table(std::set<u64_t>* table, std::map<u64_t, u64_t>* t_map) {
     cb_address_table = table;

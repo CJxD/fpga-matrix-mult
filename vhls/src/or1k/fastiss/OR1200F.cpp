@@ -35,8 +35,6 @@ OR1200F::OR1200F(sc_core::sc_module_name names, u8_t pID, bool harvardf):
   set_fixed_area(pw_area(0.5, PW_sqmm)); // Without caches
 #endif
   build_automaton();
-  lt_i_delay = SC_ZERO_TIME;
-  lt_d_delay = SC_ZERO_TIME;
   ext_interrupt=0;
   SC_THREAD(run);
   char txt[20];
@@ -67,7 +65,7 @@ bool *OR1200F::connect_interrupt(bool *c)
 
 
 // Instruction mini-cache for other half of a 64 bit word.
-void OR1200F::ins_fetcher_t::fetch(u32_t adr, u32_t &i, sc_time &lt_delay)
+void OR1200F::ins_fetcher_t::fetch(u32_t adr, u32_t &i, lt_delay &lt_delay)
 { 
   u32_t a1 = adr & ~7;
   if (a1 != cached_adr)
@@ -227,7 +225,7 @@ void OR1200F::run()
     {
       if (debug_op_requested()) serve_debugger();
 
-      if (m_qk.need_sync()) m_qk.sync();   // Keeper synchronize when quantum is reached
+      //if (m_qk.need_sync()) m_qk.sync();   // Keeper synchronize when quantum is reached
       if (ext_interrupt && *ext_interrupt) // Level-sensitive interrupt.
 	{
 	  if (busaccess.traceregions && busaccess.traceregions->check(0, TENOS_TRACE_CPU_INTERRUPTS))
@@ -236,14 +234,13 @@ void OR1200F::run()
 	}
       if (is_halted())
 	{
-	  m_qk.sync();
+	  //old m_qk.sync();
 	  wait(1, SC_US); // must poll for interrupt in halted TODO make an event
 	  continue;
 	}
       //busaccess.tick();
-      sc_time ins_start = m_qk.get_current_time();
-      lt_i_delay = SC_ZERO_TIME; //
-      lt_d_delay = SC_ZERO_TIME; //
+      lt_i_delay = master_runahead;
+      lt_d_delay = master_runahead;
       if (reset_or_yield_countdown > 0) reset_or_yield_countdown -= 1;
       else 
 	{
@@ -251,13 +248,12 @@ void OR1200F::run()
 	  POWER3(record_energy_use(instruction_energy));
 	}
 
-      sc_time d_end = lt_d_delay + sc_time_stamp(); // Data bus cycle end time
-      sc_time i_end = lt_i_delay + sc_time_stamp(); // Inst bus cycle end time
-      sc_time ins_end = ins_start + m_effective_instruction_period;  // One instruction per core_period.
+      master_runahead += m_effective_instruction_period;  //core_period modified by nominal IPC.
+      master_runahead << lt_d_delay; // Join with any external operations on the d-cache
+      master_runahead << lt_i_delay; // Join with any external operations on the i-cache
 
       // Retire join: take maximum of internal and external delays at join.
-#define TMAX(X, Y) ((X)>(Y)?(X):(Y))
-      sc_time retire_time = TMAX(ins_end, TMAX(d_end, i_end));
+#if 0
       if (0)
 	{
 	  cout << "kernel=" << sc_time_stamp() << " start=" << ins_start << "  ins_end=" << ins_end << "\n";
@@ -265,8 +261,9 @@ void OR1200F::run()
 	  cout << name () << " core_period=" << m_core_period << " ins_end was " << ins_end << " retire_time=" << retire_time << "  new delay=" << retire_time-sc_time_stamp() << "\n";
 	  //std::cout << "Retire at " << retire_time << "\n";
 	}
+#endif
 
-      m_qk.set(retire_time-sc_time_stamp());
+      //m_qk.set(retire_time-sc_time_stamp());
 
 
       oraddr_t pc = get_pc(); // peek_into_itlb(cpu_state.iqueue.insn_addr);
@@ -276,7 +273,7 @@ void OR1200F::run()
 	  if (m) dumpreg(stdout, m & TENOS_TRACE_CPU_ALL_REGS);
 	}
     }
-  m_qk.sync();
+  //m_qk.sync();
 }
 
 
@@ -344,7 +341,7 @@ void OR1200F::corepause(int microseconds, u32_t addr)  // Pause CPU for this tim
   //printf("%s:%s: Pause %i microseconds (%i core periods)\n", name(), kind(), microseconds, new_delperiods);
   log_delperiods(new_delperiods, addr);
   // We need to implement the halt and interrupt material as well...
-  m_qk.sync();
+  //m_qk.sync();
   wait(pi);
 }
 
@@ -359,13 +356,13 @@ void OR1200F::atomic_prefix() // Prefix following load/store pair as atomic.
 
 int OR1200F::eval_bdoor_read(oraddr_t memaddr, u32_t &rdata)
 {
-  sc_time &delay = lt_d_delay;
+  lt_delay &delay = lt_d_delay;
   #include "../backdoor_reads.C"
 }
 
 int OR1200F::eval_bdoor_write(oraddr_t memaddr, u32_t wdata)
 {
-  sc_time &delay = lt_d_delay;
+  lt_delay &delay = lt_d_delay;
   #include "../backdoor_writes.C"
 }
 

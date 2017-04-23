@@ -120,7 +120,8 @@ extern unsigned IDD6;
 extern unsigned IDD6L;
 extern unsigned IDD7;
 extern float Vdd; 
-extern unsigned NUM_DEVICES;
+extern unsigned NUM_DEVICES_PER_RANK;
+extern unsigned CHANNEL_DBUSWIDTH;  // Added by DJG - was fixed at 64 for DIMM use.
 
 //same bank
 #define READ_TO_PRE_DELAY (AL+BL/2+max(((int)tRTP),2)-2)

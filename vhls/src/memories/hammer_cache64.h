@@ -61,7 +61,7 @@ class hammer_cache64 : public consistent_cache64 {
   
 
   void probe_message(PW_TLM_PAYTYPE &trans, 
-		     sc_time &delay, 
+		     sc_time &delay_, 
 		     u64_t addr, 
 		     probe_msg* msg);
 

@@ -16,6 +16,7 @@
 //#include "tlm_utils/tlm_quantumkeeper.h"
 //#include "tlm_h/tlm_trans/tlm_2_interfaces/tlm_dmi.h
 #include "tenos.h"
+#include "prazor.h"
 
 
 
@@ -24,18 +25,6 @@
 #include "argv_backdoor.h"
 #include "io_backdoor.h"
 
-#ifndef POWER3
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)  /* Null macro def for all forms of TLM POWER3 */
-#define PW_TLM3(X) /* Nill macro def for forms that use custom payload */
-#endif
-#endif
 
 #ifdef WITH_SPEEDO
 #include "speedo_api.h"
@@ -75,7 +64,7 @@ class cpu_busaccess:
 #endif
 {
   SC_HAS_PROCESS(cpu_busaccess);
-  PW_TLM_PAYTYPE *llsc_payload_alloc(); // Payload allocator with llsc extensions.
+  PRAZOR_GP_T *llsc_payload_alloc(); // Payload allocator with llsc extensions.
 #ifdef TLM_POWER3
   sc_pwr::pw_accounting_base *a_customer_observer;
   int n_customer_ids_in_use;
@@ -148,17 +137,9 @@ class cpu_busaccess:
 
     
   } *DMI_records[NO_CPU_BUSACCESS_SKTS];
+
 #ifdef TLM_POWER3
-
   void resume_accounting_alias(int n); // Change token put in my initiated traffic.
-
-#if PW_TLM_PAYLOAD > 0
-  sc_pwr::pw_tlm_paytype_mm_t payload_mm;
-#else
-  llsc_mm_t payload_mm;
-#endif
-#else
-  llsc_mm_t payload_mm;
 #endif
 
 
@@ -204,7 +185,7 @@ class cpu_busaccess:
   u64_t lastfetch; // A 1-place trace buffer.
 
  protected:
-  void  doInitiatorTrans(PW_TLM_PAYTYPE &trans,sc_time& delay);
+  void  doInitiatorTrans(PRAZOR_GP_T &trans,sc_time& delay);
 
   sc_signal <u64_t> *ea_mon;
  private:
@@ -223,16 +204,16 @@ class cpu_busaccess:
   void run();
   // The following I/O functions are pure virtual in the iss core, and must be provided here:
   void                corepause(int us);  // Pause CPU for this time interval
-  bool             instr_fetch64 (addr_t memaddr, u64_t &rdata, breakpt_t *bp, sc_time &delay);
-  bool                eval_mem64 (addr_t memaddr, u64_t &rdata, breakpt_t *bp, sc_time &delay, bool linked=false);
-  bool                eval_mem32 (addr_t memaddr, u32_t &d, breakpt_t *bp, sc_time &delay, bool linked=false);
-  bool                eval_mem16 (addr_t memaddr, u16_t &d, breakpt_t *bp, sc_time &delay, bool linked=false);
-  bool                eval_mem8 (addr_t memaddr, u8_t &d, breakpt_t *bp, sc_time &delay, bool linked=false);
-  bool                set_mem64 (addr_t memaddr, u64_t value, breakpt_t *bp, sc_time &delay, bool linked=false);
-  bool                set_mem32 (addr_t memaddr, u32_t value, breakpt_t *bp, sc_time &delay);
-  bool                set_mem16 (addr_t memaddr, u16_t value, breakpt_t *bp, sc_time &delay);
-  bool                set_mem8 (addr_t memaddr, u8_t value, breakpt_t *bp, sc_time &delay);
-  int                eval_xchg(addr_t memaddr, u64_t wdata, u64_t &rdata, int width, sc_time &delay, bool tf=false);
+  bool             instr_fetch64 (addr_t memaddr, u64_t &rdata, breakpt_t *bp, lt_delay &delay);
+  bool                eval_mem64 (addr_t memaddr, u64_t &rdata, breakpt_t *bp, lt_delay &delay, bool linked=false);
+  bool                eval_mem32 (addr_t memaddr, u32_t &d, breakpt_t *bp, lt_delay &delay, bool linked=false);
+  bool                eval_mem16 (addr_t memaddr, u16_t &d, breakpt_t *bp, lt_delay &delay, bool linked=false);
+  bool                eval_mem8 (addr_t memaddr, u8_t &d, breakpt_t *bp, lt_delay &delay, bool linked=false);
+  bool                set_mem64 (addr_t memaddr, u64_t value, breakpt_t *bp, lt_delay &delay, bool linked=false);
+  bool                set_mem32 (addr_t memaddr, u32_t value, breakpt_t *bp, lt_delay &delay);
+  bool                set_mem16 (addr_t memaddr, u16_t value, breakpt_t *bp, lt_delay &delay);
+  bool                set_mem8 (addr_t memaddr, u8_t value, breakpt_t *bp, lt_delay &delay);
+  int                eval_xchg(addr_t memaddr, u64_t wdata, u64_t &rdata, int width, lt_delay &delay, bool tf=false);
   void                atomic_prefix(); // Prefix following load/store pair as atomic. - watch out for ifetch in between!
   void sim_done(const char *msg);
 
@@ -241,9 +222,9 @@ class cpu_busaccess:
     atomics = 0;
   }
 
-  int cpu_mem_store_conditional(addr_t memaddr, u64_t value, int width, sc_time &delay);
-  bool mem_read(u64_t addr, u64_t &d, sc_time &delay, bool linked=false, int skt=0, bool tf=false, int not64=3/*64 bits*/, int size=4 /*in bytes*/); 
-  bool mem_write(u64_t addr, u8_t mask, u64_t wdata, sc_time &delay);
+  int cpu_mem_store_conditional(addr_t memaddr, u64_t value, int width, lt_delay &delay);
+  bool mem_read(u64_t addr, u64_t &d, lt_delay &delay, bool linked=false, int skt=0, bool tf=false, int not64=3/*64 bits*/, int size=4 /*in bytes*/); 
+  bool mem_write(u64_t addr, u8_t mask, u64_t wdata, lt_delay &delay);
 
   void qk_sync();
   bool qk_need_sync();

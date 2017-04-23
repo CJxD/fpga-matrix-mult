@@ -51,7 +51,7 @@ busmux64::busmux64(sc_core::sc_module_name name,
 }
 
 // Route to appropriate output socket.
-int busmux64::route(int id, PW_TLM_PAYTYPE &trans)
+int busmux64::route(int id, PRAZOR_GP_T &trans)
 {
   u64_t adr = (u64_t) trans.get_address();
   int idx;
@@ -106,11 +106,11 @@ int busmux64::route(int id, PW_TLM_PAYTYPE &trans)
 }
 
 // TLM-2 blocking transport method
-void busmux64::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
+void busmux64::b_transport(int id, PRAZOR_GP_T &trans, sc_time &delay_)
 {
   POWER3(PW_TLM3(pw_agent_record l_agent = trans.pw_log_hop(this))); // First call
   stats.operations += 1;
-  sc_time start_queue_time = sc_time_stamp() + delay;
+  sc_time start_queue_time = COLLECT_LT_DELAY(sc_time_stamp() + delay_, trans.ltd.point());
 
   int idx = route(id, trans);
   if (idx < 0)
@@ -137,7 +137,8 @@ void busmux64::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
       BMON(printf("tid=%i: Start wait " PFX64 " idx=%i\n", tid, adr, idx));
       //did_queue = true;
       stats.contended_operations += 1;
-      wait(delay); delay = SC_ZERO_TIME;
+      //wait(delay); delay = SC_ZERO_TIME;
+      LT_RESYNCH(delay_, trans.ltd);
       // added timeout since events being lost? : despite using sc_event_queue...
 
       //do { ml.unlock(); ; ml.lock(); } while (busy_flags[idx]);
@@ -154,16 +155,14 @@ void busmux64::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
   busy_flags[idx] = true;
   ml.unlock();
 #endif
-  sc_time start_op_time = sc_time_stamp() + delay;
-
-
-  inita_socket[idx]->b_transport(trans, delay); // HERE WE DO THE ACTUAL PASSTHRU.
+  sc_time start_op_time = COLLECT_LT_DELAY(sc_time_stamp() + delay_, trans.ltd.point());
+  inita_socket[idx]->b_transport(trans, delay_); // HERE WE DO THE ACTUAL PASSTHRU.
 
 #ifdef CYCLE_ACCURATE 
-  if (true/* ||did_queue*/)
+  if (true/* ||did_queue*/)  // do not really need this quantum sync even if we did queue.?
     {
-      wait(delay); // do not really need this quantum sync even if we did queue.?
-      delay = SC_ZERO_TIME;
+      // wait(delay_); delay_ = SC_ZERO_TIME; 
+      LT_RESYNCH(delay_, trans.ltd);
     }
   
   ml.lock();
@@ -179,10 +178,10 @@ void busmux64::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
 #else
   
   // TODO: add this.
-  //  delay += contention estimate when loosely timed ... 
+  //  AUGMENT_LT_DELAY(trans.ltd, delay_, (contention estimate when loosely timed ... ));
 
 #endif
-  sc_time end_op_time = sc_time_stamp() + delay;
+  sc_time end_op_time = COLLECT_LT_DELAY(sc_time_stamp() + delay_, trans.ltd.point());
   stats.log(start_queue_time, start_op_time, end_op_time);
 
 #if PW_TLM_PAYLOAD > 0
@@ -214,7 +213,7 @@ void busmux64::stats_t::stat_report(busmux64 *p, const char *msg, FILE *fd, bool
 }
 
 
-bool busmux64::get_direct_mem_ptr(int id, PW_TLM_PAYTYPE &trans, tlm::tlm_dmi &dmi_data)
+bool busmux64::get_direct_mem_ptr(int id, PRAZOR_GP_T &trans, tlm::tlm_dmi &dmi_data)
 {
   int idx = route(id, trans);
   inita_socket[idx]->get_direct_mem_ptr(trans, dmi_data);

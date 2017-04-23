@@ -31,7 +31,7 @@ arm_cp14::arm_cp14(sc_module_name name) :
     m_registers->writepo(0x4*i, (u8_t*)(&allzeros), 4);
 }  
 
-void arm_cp14::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_cp14::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
   cp_request_extension *ext = 0;
   trans.get_extension(ext);
   // instruction that we have received must be

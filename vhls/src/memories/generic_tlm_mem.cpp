@@ -108,7 +108,7 @@ void generic_tlm_mem::loadme(const char *filename, bool elff, u64_t *entrypt)
 }
 
 
-void generic_tlm_mem::peq_cb(PW_TLM_PAYTYPE& trans, const tlm::tlm_phase& ph) {
+void generic_tlm_mem::peq_cb(PRAZOR_GP_T& trans, const tlm::tlm_phase& ph) {
   // this callback is invoked when delay argument that was passed to notify method
   // of m_peq has been reached
   
@@ -138,25 +138,25 @@ void generic_tlm_mem::peq_cb(PW_TLM_PAYTYPE& trans, const tlm::tlm_phase& ph) {
 
 
 // non blocking transport interface
-tlm::tlm_sync_enum generic_tlm_mem::nb_access_fw(PW_TLM_PAYTYPE &trans, 
+tlm::tlm_sync_enum generic_tlm_mem::nb_access_fw(PRAZOR_GP_T &trans, 
 						 tlm::tlm_phase &phase, 
 						 sc_time &delay) 
 {
   // here the correct delay needs to be calculated
-  delay += m_latency / 2;
+  AUGMENT_LT_DELAY(trans.ltd, delay,  m_latency / 2);
   m_peq.notify(trans, phase, delay);
 
   return tlm::TLM_ACCEPTED;
 }
 
 
-void generic_tlm_mem::b_access(PW_TLM_PAYTYPE &trans, sc_time &delay)
+void generic_tlm_mem::b_access(PRAZOR_GP_T &trans, sc_time &delay)
 {
-  delay += m_latency;
+  AUGMENT_LT_DELAY(trans.ltd, delay, m_latency);
   access(trans, delay);
 }
 
-void generic_tlm_mem::access(PW_TLM_PAYTYPE &trans, sc_time &delay)
+void generic_tlm_mem::access(PRAZOR_GP_T &trans, sc_time &delay)
 {
   tlm::tlm_command cmd = trans.get_command();
   // std::cout << "Tmp debug k " << kind() << " n=" << name() << "\n";
@@ -316,7 +316,7 @@ void generic_tlm_mem::access(PW_TLM_PAYTYPE &trans, sc_time &delay)
 }
 
 
-bool generic_tlm_mem::get_direct_mem_ptr(PW_TLM_PAYTYPE&, tlm::tlm_dmi &dmi_data)
+bool generic_tlm_mem::get_direct_mem_ptr(PRAZOR_GP_T&, tlm::tlm_dmi &dmi_data)
 {
   if (last_page)
     {

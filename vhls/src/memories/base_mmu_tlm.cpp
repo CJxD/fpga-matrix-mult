@@ -29,7 +29,7 @@ base_mmu_tlm::base_mmu_tlm(
 }
 
 // TLM-2 blocking transport method
-void base_mmu_tlm::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay)
+void base_mmu_tlm::b_transport(int id, PRAZOR_GP_T &trans, sc_time &delay)
 {
     u32_t vaddr = trans.get_address();        
     u32_t paddr = -1;

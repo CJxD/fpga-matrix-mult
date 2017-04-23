@@ -13,17 +13,9 @@
 #include "tlm_utils/multi_passthrough_initiator_socket.h"
 #include "tlm_utils/multi_passthrough_target_socket.h"
 
+#include "prazor.h"
 #include "tenos.h"
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 class hypertransport :
   public sc_module
@@ -60,10 +52,10 @@ class hypertransport :
 		 int);
 
   // TLM-2 blocking transport method
-  bool get_direct_mem_ptr(int n, PW_TLM_PAYTYPE&, tlm::tlm_dmi& dmi_data);
-  void b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay);
+  bool get_direct_mem_ptr(int n, PRAZOR_GP_T&, tlm::tlm_dmi& dmi_data);
+  void b_transport(int id, PRAZOR_GP_T& trans, sc_time &delay);
   tlm::tlm_sync_enum nb_transport_fw(int n,
-				     PW_TLM_PAYTYPE& trans,
+				     PRAZOR_GP_T& trans,
 				     tlm::tlm_phase& phase,
 				     sc_time& delay);
 

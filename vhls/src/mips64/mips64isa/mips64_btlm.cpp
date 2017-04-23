@@ -87,7 +87,6 @@ void mips64_btlm::reset(bool enable_first_to_run)
 void mips64_btlm::run()
 {
   //  sc_time local_quantum(10, SC_NS);
-  lt_busdelay = SC_ZERO_TIME;
 #ifdef TLM_POWER3
   set_vcc(1.4, PW_VOLT);
 //  update_power("ON", "IDLE");
@@ -95,7 +94,9 @@ void mips64_btlm::run()
   m_over = false; // for now
   while(!m_over)
     {
-      if (m_qk.need_sync()) m_qk.sync();   // Keeper synchronize when quantum is reached
+      lt_busdelay = master_runahead;
+      master_runahead.perhaps_sync();   // Keeper synchronize when quantum is reached
+      //if (m_qk.need_sync()) m_qk.sync();
       if (ext_interrupt && *ext_interrupt) // Level-sensitive interrupt.
 	{
 	  if (busaccess.traceregions && busaccess.traceregions->check(0, TENOS_TRACE_CPU_INTERRUPTS))
@@ -104,26 +105,25 @@ void mips64_btlm::run()
 	}
       if (halted)
 	{
-	  m_qk.sync();
-	  wait(1, SC_US); // must poll for interrupt in halted TODO make an event
+	  master_runahead += sc_time(1, SC_US);
+	  master_runahead.perhaps_sync();
+	  //m_qk.sync();
+	  // TODO poll for interrupt while halted.
 	  continue;
 	}
-      sc_time ins_start = m_qk.get_current_time();
-      lt_busdelay = SC_ZERO_TIME; // This is updated by busaccess.
+      lt_busdelay = master_runahead; // This is updated by busaccess.
       step();
 
-
-      sc_time ext_end = lt_busdelay + sc_time_stamp(); // Bus cycle end time
-      sc_time ins_end = ins_start+core_period;  // One instruction per core_period.
-
+      master_runahead += core_period;  // One instruction per core_period.
       // Retire join: take maximum of internal and external delays at join.
-#define TMAX(X, Y) ((X)>(Y)?(X):(Y))
+      master_runahead << lt_busdelay;
+
       //cout << "kernel=" << sc_time_stamp() << " start=" << ins_start << " ext_end=" << ext_end << " ins_end=" << ins_end << "\n";
-      m_qk.set(TMAX(ext_end, ins_end)-sc_time_stamp());
-
+      //m_qk.set(TMAX(ext_end, ins_end)-sc_time_stamp());
+      master_runahead.perhaps_sync();
     }
-  m_qk.sync();
-
+  //m_qk.sync();
+  master_runahead.force_sync();
 
 }
 

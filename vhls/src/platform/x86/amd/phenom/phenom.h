@@ -8,15 +8,7 @@
 
 #include <systemc>
 #include <tlm.h>
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
+#include "prazor.h"
 
 #include <dramsim2/dramsim_sc_wrapper.h>
 #include <io/uart64_cbg.h>

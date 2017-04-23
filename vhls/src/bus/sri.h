@@ -16,7 +16,7 @@
 #include "tlm_utils/peq_with_cb_and_phase.h"
 
 #include "opteron_messages.h"
-
+#include "prazor.h"
 #include "tenos.h"
 
 #include <set>
@@ -33,16 +33,6 @@
 #else
 #define SRIDEBUG(X)
 #define SRIDEBUG1(X)
-#endif
-
-#ifdef TLM_POWER3
-#include <tlm_power>
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
 #endif
 
 class sri :
@@ -86,20 +76,20 @@ class sri :
   opteron_msg_mm* m_mm;
   
 
-  std::map<u64_t, boost::tuple<PW_TLM_PAYTYPE*, sc_event*, int> > wait_tran_map;
-  std::queue<boost::tuple<PW_TLM_PAYTYPE*, sc_event*> > cache_line_par;
+  std::map<u64_t, boost::tuple<PRAZOR_GP_T*, sc_event*, int> > wait_tran_map;
+  std::queue<boost::tuple<PRAZOR_GP_T*, sc_event*> > cache_line_par;
   std::map<u64_t, std::queue<int> > cache_line_order;
 
   tlm_utils::peq_with_cb_and_phase<sri, PW_TLM_TYPES> m_peq;
-  void peq_cb(PW_TLM_PAYTYPE& trans, const tlm::tlm_phase& ph);
+  void peq_cb(PRAZOR_GP_T& trans, const tlm::tlm_phase& ph);
 
   int crossbar_id;
 
   bool probe_msg_busy;
-  std::queue<PW_TLM_PAYTYPE*> probe_requests;
-  PW_TLM_PAYTYPE* cache_ack_data_tran; // ack that contains data if any
-  PW_TLM_PAYTYPE* dram_ack_data_tran;
-  PW_TLM_PAYTYPE* wb_ack_data_tran;
+  std::queue<PRAZOR_GP_T*> probe_requests;
+  PRAZOR_GP_T* cache_ack_data_tran; // ack that contains data if any
+  PRAZOR_GP_T* dram_ack_data_tran;
+  PRAZOR_GP_T* wb_ack_data_tran;
   int probe_ack_received;
   bool active_probe_invalidation;
   u64_t probe_addr;
@@ -108,7 +98,7 @@ class sri :
   // if SRI is already busy with probing caches the local caches probe message
   // will be delayed and therefore DRAM answer can come in sooner so we
   // need to store it before we start processing cache probes
-  std::map<u64_t, PW_TLM_PAYTYPE*> dram_probe_asynch_msg;
+  std::map<u64_t, PRAZOR_GP_T*> dram_probe_asynch_msg;
 
   std::map<u64_t, int> ack_msgs;
   // used as safety check, can be used instead of ack_msgs
@@ -118,7 +108,7 @@ class sri :
   std::map<u64_t, u8_t*> ack_wb_lanes;
   
 
-  void notify_parallel_cache_lines(PW_TLM_PAYTYPE&);
+  void notify_parallel_cache_lines(PRAZOR_GP_T&);
 
  protected:
   std::set<u64_t> address_table;
@@ -152,14 +142,14 @@ class sri :
       bool memory_migration = false);
 
   // TLM-2 blocking transport method
-  bool get_direct_mem_ptr(int n, PW_TLM_PAYTYPE&, tlm::tlm_dmi& dmi_data);
-  void b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay);
+  bool get_direct_mem_ptr(int n, PRAZOR_GP_T&, tlm::tlm_dmi& dmi_data);
+  void b_transport(int id, PRAZOR_GP_T& trans, sc_time &delay);
   tlm::tlm_sync_enum nb_transport_bw(int id,
-				     PW_TLM_PAYTYPE& trans,
+				     PRAZOR_GP_T& trans,
 				     tlm::tlm_phase& phase,
 				     sc_time& delay);
   tlm::tlm_sync_enum nb_transport_fw(int id, 
-				     PW_TLM_PAYTYPE& trans,
+				     PRAZOR_GP_T& trans,
 				     tlm::tlm_phase& phase,
 				     sc_time& delay);
 

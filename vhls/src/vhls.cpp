@@ -9,10 +9,19 @@
 #include <csignal>
 #include <dlfcn.h>
 #include <poll.h>
+#include <sys/time.h>
+#include <chrono>
+#include <thread>
+#include <cassert>
+#include <iomanip>
+
+#define TEMP_PT_BYPASS 1
+#include "tenos/prazor.h"
 
 #ifdef TLM_POWER3
 #include <tlm_power>
 #endif // TLM_POWER3
+
 
 #include <tenos/tenos.h>
 #include <tenos/ptrace_v1.h>
@@ -21,7 +30,7 @@
 #include <platform/platform.h>
 #include <tlm_utils/tlm_quantumkeeper.h>
 
-#include <sys/time.h>
+
 
 using namespace std;
 using namespace sc_core;
@@ -30,6 +39,8 @@ using namespace sc_pwr;
 #endif // TLM_POWER3
 
 #define MAX_NO_OF_CORES 256
+
+
 
 /*
  * GLOBALS
@@ -41,8 +52,13 @@ int g_cores = 1;
 #if TRACECOMM
 int g_tracecomm = false;
 #endif
+#if THREAD_COMM
+int g_thread_comm = false;
+int g_roi_region = 0;
+#endif
 int g_self_starting_cores = 1;
-int global_qk_ns = 0;
+int global_qk_ns = 1000;
+sc_time global_qk_quantum = sc_time(1000, SC_NS);
 int g_no_caches = 0;
 bool g_log_energy_vcd_plot = false;
 double g_core_frequency = 667e6;
@@ -88,6 +104,8 @@ struct timeval g_te;
 
 struct pollfd stdin_poll = {  .fd = STDIN_FILENO
 			    , .events = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI };
+
+prazor_gp_mm_t* prazor_gp_mm_t::_instance = 0;
 
 #ifndef VHLS_STATIC  
 typedef platform* (*func_ptr_t)(const sc_module_name&,
@@ -138,6 +156,26 @@ void close_simulation(int p_arg) {
        << endl;
   
   exit(0);
+}
+
+template<typename Rep,typename Period>
+void print_duration(std::chrono::duration<Rep,Period> t) {
+    assert(0<=t.count() && "t must be >= 0");
+
+    typedef chrono::duration<int,std::ratio<60*60*24>> days;
+
+    auto d = chrono::duration_cast<days>(t);
+    auto h = chrono::duration_cast<chrono::hours>(t - d);
+    auto m = chrono::duration_cast<chrono::minutes>(t - d - h);
+    auto s = chrono::duration_cast<chrono::seconds>(t - d - h - m);
+    auto ms = chrono::duration_cast<chrono::milliseconds>(t - d - h - m - s);
+
+    cout << "Simulation took: ";
+    cout << setw(2) << setfill('0') << d.count() << "d:";
+    cout << setw(2) << setfill('0') << h.count() << "h:";
+    cout << setw(2) << setfill('0') << m.count() << "m:";
+    cout << setw(2) << setfill('0') << s.count() << "s:";
+    cout << setw(3) << setfill('0') << ms.count() << "ms" << endl;
 }
 
 int sc_main(int argc, char *argv[]) {
@@ -195,6 +233,7 @@ int sc_main(int argc, char *argv[]) {
       continue;
     } else if (!strcmp(argv[1], "-global-qk-ns")) {
       global_qk_ns = atoi(argv[2]);
+      global_qk_quantum = sc_time(global_qk_ns, SC_NS);
       argc -= 2; argv += 2;
       continue;
     } else if (!strcmp(argv[1], "-no-caches")) {
@@ -352,9 +391,7 @@ int sc_main(int argc, char *argv[]) {
   
   if (global_qk_ns) {
     tlm_utils::tlm_quantumkeeper::set_global_quantum(
-      sc_time(
-	global_qk_ns,
-	SC_NS));
+      sc_time(global_qk_ns, SC_NS));
   }
   
   std::cout
@@ -468,9 +505,13 @@ int sc_main(int argc, char *argv[]) {
   printf("Simulation starts at %s.%03d\n", buffer, millisec);
   
   gettimeofday(&g_te, NULL);
+
   // Start simulation
+  auto start = chrono::steady_clock::now();
   sc_start();
   sc_stop();
+  auto finish = std::chrono::steady_clock::now();
+  print_duration(finish-start);
   
   if (1) {
     char line0[232];
@@ -523,10 +564,74 @@ int sc_main(int argc, char *argv[]) {
 }
 
 // For LT should add on the run-ahead 'delay'
-int backdoor_counter_ticks(sc_time delay) {
-  int r = (sc_time_stamp() + delay)/ sc_time(1, SC_US);
+int backdoor_counter_ticks(lt_delay runahead) {
+  int r = runahead.point()/ sc_time(1, SC_US);
   // printf("Backdoor_counter_ticks returns %i\n", r);
   return r;
 }
+
+
+prazor_gp_mm_t* prazor_gp_mm_t::instance() {
+  if(_instance == 0) {
+    _instance = new prazor_gp_mm_t;
+  }
+
+  return _instance;
+}
+
+PRAZOR_GP_T *prazor_gp_mm_t::allocate() {
+  PRAZOR_GP_T *ptr;
+
+  lck.lock();
+  if(free_list) {
+    ptr = free_list->trans;
+
+    access *empties_head = empties;
+    empties = free_list;
+    free_list = free_list->next;
+    empties->prev = 0;
+    empties->next = empties_head;
+  }
+  else {
+    ptr = new PRAZOR_GP_T(this);
+  }
+  lck.unlock();
+
+  if(ptr->get_ref_count() < 0) {
+    while(ptr->get_ref_count() != 0)
+      ptr->acquire();
+  }
+
+  assert(ptr->get_ref_count() == 0);
+
+  return ptr;
+}
+
+
+void prazor_gp_mm_t::free(PRAZOR_GP_T *trans)
+{
+  // clears the extension pointers for sure
+  trans->reset();
+  
+  lck.lock();
+  if(!empties) {
+    empties = new access;
+    empties->prev = 0;
+    empties->next = 0;
+    if(free_list) 
+      free_list->prev = empties;
+  }
+  access* free_list_head = free_list;
+  free_list = empties;
+  empties = empties->next;
+  free_list->next = free_list_head;
+  free_list->trans = trans;
+  lck.unlock();
+}
+
+void prazor_gp_mm_t::free(tlm::tlm_generic_payload* disposeme) {
+  free(dynamic_cast<prazor_gp_t *>(disposeme));
+}
+
 
 // EOF

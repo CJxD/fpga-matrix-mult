@@ -4,21 +4,13 @@
 #ifndef __SDIO_CBG__
 #define __SDIO_CBG__
 
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
 #include "tlm_utils/multi_passthrough_initiator_socket.h"
 #include "tlm_utils/multi_passthrough_target_socket.h"
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 #define SDIOSTATS(X) X
 
@@ -55,7 +47,7 @@ class sdio_cbg : public sc_module
   tlm_utils::multi_passthrough_initiator_socket<sdio_cbg, 64, PW_TLM_TYPES> dma;
 
 
-  void b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
   sc_out<bool> IRQ;
 

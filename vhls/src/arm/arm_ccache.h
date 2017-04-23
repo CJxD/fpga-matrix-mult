@@ -43,7 +43,7 @@ public:
   void create_abt_socket();
   void foreign_write(u64_t addr); // overload
 
-  void b_cp15_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_cp15_access(int idx, PRAZOR_GP_T &trans, sc_time &delay);
 
   void set_region(region region) {
       m_region = region;

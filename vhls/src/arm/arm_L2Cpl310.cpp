@@ -72,7 +72,7 @@ arm_L2Cpl310::arm_L2Cpl310(
     controller_target.register_b_transport(this, &arm_L2Cpl310::b_access);
 }
 
-void arm_L2Cpl310::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_L2Cpl310::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
     tlm_command cmd = trans.get_command();
     u32_t adr = (u32_t)trans.get_address();
     u8_t* ptr = trans.get_data_ptr();

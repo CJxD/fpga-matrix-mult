@@ -20,25 +20,25 @@
 using namespace sc_pwr;
 
 
-extern int backdoor_counter_ticks(sc_time delay);
+extern int backdoor_counter_ticks(lt_delay runahead);
 
 const double e_unit_basis = 1.0e6; // Energy units - microJoules (uJ).
 const u32_t UNIT_BASIS = SPEEDO_UNIT_uJ;
 
 
-void speedo_ifc_t::snapshop_ctx(speedo_context_s &dest, sc_time &delay)
+void speedo_ifc_t::snapshop_ctx(speedo_context_s &dest, lt_delay &runahead)
 {
   const sc_pwr::pw_energy l_global_energy = pw_stat_observer_base::get_global_energy(); 
   SPEEDO_TRC(std::cout << "Global energy read  " << l_global_energy << "\n");
   float joules = l_global_energy.to_joules();
   dest.global_energy = (int)(joules * e_unit_basis); // Energy value returned as integer.
   dest.local_energy = parent.local_energy();
-  dest.time = backdoor_counter_ticks(delay);
+  dest.time = backdoor_counter_ticks(runahead);
 }
 
 
 
-int speedo_ifc_t::speedo_api(/*addr_t*/uint64_t addr, uint64_t &data, bool writef, sc_time &delay, int procID)
+int speedo_ifc_t::speedo_api(/*addr_t*/uint64_t addr, uint64_t &data, bool writef, lt_delay &runahead, int procID)
 {
   SPEEDO_TRC(if (writef) printf("spEEDO API WRITE OP addr=" PFX64 " wdata=%lx\n", addr, data));
   int rc = SPEEDO_RC_NO_POWER_MONITOR;
@@ -115,7 +115,7 @@ int speedo_ifc_t::speedo_api(/*addr_t*/uint64_t addr, uint64_t &data, bool write
 	      SPEEDO_TRC(std::cout << "spEEDO: checkpoint: Global energy joules=" << l_g_joules << "\n");
 	      slaved_ctx.global_energy = (int)(l_g_joules * e_unit_basis); // convert to the units used in this implementation.
 	      slaved_ctx.local_energy = l_local_energy;
-	      slaved_ctx.time = backdoor_counter_ticks(delay);
+	      slaved_ctx.time = backdoor_counter_ticks(runahead);
 	      parent.resume_accounting_alias(current_ctx); // Tell cpu_busaccess to use a new customer number from now on.
 	    }
 	  else data = SPEEDO_CONTEXTS | (current_ctx << 8);
@@ -153,7 +153,7 @@ int speedo_ifc_t::speedo_api(/*addr_t*/uint64_t addr, uint64_t &data, bool write
 	      
 	    case SPEEDO_CTX_REG_LOCAL_TIME:
 	      {
-		int new_time =  backdoor_counter_ticks(delay);
+		int new_time = backdoor_counter_ticks(runahead);
 		data = new_time;
 	      }
 	      rc= 0;

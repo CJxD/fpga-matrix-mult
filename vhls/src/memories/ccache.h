@@ -4,6 +4,7 @@
 #ifndef __CCACHE_H__
 #define __CCACHE_H__
 
+#include "prazor.h"
 #include "tenos.h"
 #include "tlm.h"
 #include "tlm_utils/multi_passthrough_initiator_socket.h"
@@ -26,17 +27,6 @@
    reference this should reduce memory footprint */
 //#define CMISSTY 1
 
-#ifdef TLM_POWER3
-#include "tlm_power.h"
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-typedef int pw_customer_acct; /* use a simple int as a placeholder */
-#define PW_TLM3(X)
-#define POWER3(X)
-#endif
 
 #define CTRC(ADDR, X)\
 {\
@@ -61,39 +51,6 @@ typedef int pw_customer_acct; /* use a simple int as a placeholder */
     SCU->snooped_target(SNOOPED);
 
 class ccache_state_extension;
-
-class ccache_state_mm_t : public tlm::tlm_mm_interface
-{
-
- public:
-  // constructor
-  ccache_state_mm_t()
-    : free_list(0), empties(0), lck("cache_mm") {}
-
-  PW_TLM_PAYTYPE* allocate();
-  void free(PW_TLM_PAYTYPE* r);
-
-#ifdef TLM_POWER3
-#if PW_TLM_PAYLOAD > 0 
-  void free(tlm::tlm_generic_payload* trans) 
-  {
-    free((PW_TLM_PAYTYPE*)trans);
-  }
-#endif
-#endif
-
- private:
-  struct access {
-    PW_TLM_PAYTYPE* trans;
-    access* next;
-    access* prev;
-  };
-
-  access* free_list;
-  access* empties;
-
-  sc_mutex lck;
-};
 
 class ccache : public smallramp, public sc_module
 #ifdef TLM_POWER3
@@ -266,7 +223,8 @@ class ccache : public smallramp, public sc_module
             u64_t index, 
 	    u64_t tag, 
 	    u8_t** clinep, 
-	    u64_t& ts, 
+	    u64_t& ts,
+	    lt_delay &ltd,
 	    sc_time& delay);
 
         bool clean(
@@ -337,10 +295,10 @@ class ccache : public smallramp, public sc_module
     // this socket is only created if cache can be snooped
     tlm_utils::multi_passthrough_target_socket<ccache, 64, PW_TLM_TYPES>* snooped_socket;
 
-    void b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay);
+    void b_transport(int id, PRAZOR_GP_T &trans, sc_time &delay);
     tlm::tlm_sync_enum nb_transport_fw(
         int id,
-        PW_TLM_PAYTYPE& trans,
+        PRAZOR_GP_T& trans,
         tlm::tlm_phase& ph,
         sc_time& delay);
 
@@ -376,6 +334,7 @@ class ccache : public smallramp, public sc_module
         u8_t** clinep, 
         u64_t& oldts, 
         state_t &clstate,
+	lt_delay &ltd,
         sc_time& delay);
 
     // cache geometry
@@ -406,6 +365,7 @@ class ccache : public smallramp, public sc_module
 	u8_t* &destination,
 	u32_t length, 
 	ccache_state_extension* &cse,
+	lt_delay &ltd,
 	sc_time& delay,
 	int size
 #if TRACECOMM
@@ -422,6 +382,7 @@ class ccache : public smallramp, public sc_module
         u32_t length,
         ccache_state_extension* &cse, 
         llsc_extension* &linked,
+	lt_delay &ltd,
         sc_time& delay,
 	int size);
 
@@ -435,6 +396,7 @@ class ccache : public smallramp, public sc_module
         u8_t* benable,
         u32_t blength,
         ccache_state_extension* &cse, 
+	lt_delay &ltd,
         sc_time& delay);
 
 
@@ -472,6 +434,7 @@ class ccache : public smallramp, public sc_module
         u8_t* benable,
         u32_t blength,
         ccache_state_extension* &cse, 
+	lt_delay &ltd,
         sc_time& delay,
 	int size);
 
@@ -495,10 +458,9 @@ class ccache : public smallramp, public sc_module
 	int pid = -1);
 
     void peq_cb(
-	PW_TLM_PAYTYPE& trans, 
+	PRAZOR_GP_T& trans, 
 	const tlm::tlm_phase& ph);
 
-    ccache_state_mm_t ccache_state_mm;
     u32_t lru;
 
     bool m_active;

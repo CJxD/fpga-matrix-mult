@@ -1679,13 +1679,15 @@ void armisa::DecodeThumb32LDRSTRDualExclusive(u16_t in1, u16_t in2) {
     else if(((op1 >> 1) == 0 && op2 == 2) ||
        ((op1 >> 1) == 1 && ((op2 & 1) == 0))) {
         // STRD (immediate)
-        assert((insRd+1) == Bits4(in2, 8));
+        insRt = insRd;
+        insRt2 = Bits4(in2, 8);
         insL = false;
     } else if((((op1 >> 1) == 0 && op2 == 3) 
                || ((op1 >> 1) == 1 && (op2 & 1) == 1)) 
               && Rn != 15) {
         // LDRD (immediate)
-        assert((insRd+1) == Bits4(in2, 8));
+        insRt = insRd;
+	insRt2 = Bits4(in2, 8);
         insL = true;
     } else if(op1 == 1 && op2 == 1) {
         switch(op3) {
@@ -2390,6 +2392,21 @@ void armisa::DecodeThumb32CPRSIMDFloatInstrs(u16_t in1, u16_t in2) {
 	  /* VNMLA = 4 */
 	  /* VNMLS = 5 */
 	  insALUOpcode = (Bit(in2, 6) == 1) ? 4 : 5;
+	} else if(Bits(in1, 7, 5) == 0x1C &&
+		  Bits(in1, 4, 2) == 0x2 &&
+		  Bits(in2, 9, 3) == 0x5 &&
+		  Bit(in2, 6) == 1 &&
+		  Bit(in2, 4) == 0) {
+	  /* VNMUL */
+	  insDecodeT = FloatALUT;
+	  if(insFloatSingle) {
+	    insRn = Bits4(in1, 0) << 1 | Bit(in2, 7);
+	    insRm = Bits4(in2, 0) << 1 | Bit(in2, 5);
+	  } else {
+	    insRn = Bit(in2, 7) << 4 | Bits4(in1, 0);
+	    insRm = Bit(in2, 5) << 4 | Bits4(in2, 0);
+	  }
+	  insALUOpcode = 14;
 	} else if(Bits(in1, 7, 5) == 0x1D 
 		  && Bits(in1, 4, 2) == 0x3
 		  && Bits(in2, 9, 3) == 0x5
@@ -2603,20 +2620,26 @@ void armisa::DecodeThumb32CPRSIMDFloatInstrs(u16_t in1, u16_t in2) {
 	    insRm = !single_reg
 	      ? ((Bit(in2, 5) << 4) | Bits4(in2, 0))
 	      : ((Bits4(in2, 0) << 1) | Bit(in2, 5));
-	    float val;
 	    if(single_reg) {
-	      val = *((float*)(&data[insRm]));
+	      float val = *((float*)(&data[insRm]));
+	      val = round_zero ? floor(val) : ceil(val);
+	      if(unsign) {
+		u32_t integer = (u32_t)val;
+		data[insRd] = integer;
+	      } else {
+		int integer = (int)val;
+		data[insRd] = integer;
+	      }
 	    } else {
-	      val = *((float*)(&d_reg[insRm]));
-	    }
-	      
-	    val = round_zero ? floor(val) : ceil(val);
-	    if(unsign) {
-	      u32_t integer = (u32_t)val;
-	      data[insRd] = integer;
-	    } else {
-	      int integer = (int)val;
-	      data[insRd] = integer;
+	      double val = *((double*)(&d_reg[insRm]));
+	      val = round_zero ? floor(val) : ceil(val);
+	      if(unsign) {
+		u32_t integer = (u32_t)val;
+		data[insRd] = integer;
+	      } else {
+		int integer = (int)val;
+		data[insRd] = integer;
+	      }
 	    }
 	  } else {
 	    unsign = op == 0;
@@ -2636,8 +2659,17 @@ void armisa::DecodeThumb32CPRSIMDFloatInstrs(u16_t in1, u16_t in2) {
 		data[insRd] = *((u32_t*)(&val));
 	      }
 	    } else {
-	      /* TODO: Convert 64-bit integer to 32-bit float */
-	      assert(0);
+	      if(unsign) {
+		u32_t integer = *((u32_t*)(&data[insRm]));
+		double val = (double)integer;
+		u64_t* Dd = (u64_t*)(&d_reg[0]);
+		Dd[insRd] = *((u64_t*)(&val));
+	      } else {
+		long int integer = *((&data[insRm]));
+		double val = (double)integer;
+		u64_t* Dd = (u64_t*)(&d_reg[0]);
+		Dd[insRd] = *((u64_t*)(&val));
+	      }
 	    }
 	  }
 	} else {

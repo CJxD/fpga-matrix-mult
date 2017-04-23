@@ -59,6 +59,7 @@ ccache::state_t ccache::way::lookup(
     u64_t tag, 
     u8_t** cline, 
     u64_t& ts, 
+    lt_delay &ltd,
     sc_time& delay) {
     ts = m_status[index].load();
 
@@ -66,7 +67,7 @@ ccache::state_t ccache::way::lookup(
 
     POWER3(m_parent->log_energy_use(m_tags->m_read_energy_op)); 
     //delay = max(delay, m_tags->m_sr_latency);
-    delay += m_tags->m_sr_latency;
+    AUGMENT_LT_DELAY(ltd, delay,  m_tags->m_sr_latency);
 
 #if 0
     CWTRC(addr, printf("CCACHE::WAY::lookup() -> address 0x%lx in state %d, tag %lx -- ts %ld\n",
@@ -79,7 +80,7 @@ ccache::state_t ccache::way::lookup(
         // for the whole of cache line
         POWER3(m_parent->log_energy_use(m_data->m_read_energy_op));
 	//delay = max(delay, m_data->m_sr_latency);
-	delay += m_data->m_sr_latency;
+	AUGMENT_LT_DELAY(ltd, delay,  m_data->m_sr_latency);
 	  
         *cline = m_data->readp(index);
 
@@ -311,11 +312,11 @@ bool ccache::trans_to_secondary(
     u64_t addr,
     u8_t* &data,
     bool is_read,
-    sc_time& delay,
+    sc_time& delay_,
     int rsize,
     int pid) {
 
-    PW_TLM_PAYTYPE trans;// = ccache_state_mm.allocate(); 
+    PRAZOR_GP_T trans;// = ccache_state_mm.allocate(); 
     if(cse) {
         cse->trans = type;
         //trans.set_auto_extension<ccache_state_extension>(cse);
@@ -351,7 +352,7 @@ bool ccache::trans_to_secondary(
 
     sc_time secondary_delay = SC_ZERO_TIME;
     initiator_socket[0]->b_transport(trans, secondary_delay);
-    delay += secondary_delay;
+    AUGMENT_LT_DELAY(trans.ltd, delay,  secondary_delay);
     if (trans.is_response_error()) {
         //trans->release();
         
@@ -373,13 +374,11 @@ bool ccache::trans_to_secondary(
     return true;
 }
 
-void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
-    // check to see if cache is active, if it is not
-    // active then simply forward transaction to the next
-    // unit in line
-
+void ccache::b_transport(int id, PRAZOR_GP_T &trans, sc_time &delay_) {
+    // Check to see if cache is active. If it is not
+    // enabled then simply forward transaction to the next unit in line.
     if(!m_active) {
-        return initiator_socket->b_transport(trans, delay);
+        return initiator_socket->b_transport(trans, delay_);
     }
 
     // assumption here is that memory has been
@@ -399,16 +398,18 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
     // tag
     u64_t tag = (addr >> (m_geometry.boffsetb + m_geometry.indexb));
 
-    //sc_time start_time = delay + sc_time_stamp();
+    //sc_time start_time = COLLECT_LT_DELAY(delay_ + sc_time_stamp(), lt_runahead.point());
     pw_customer_acct *customer_acct = 0;
 
     PW_TLM3(customer_acct = trans.get_customer_id());  
     llsc_extension* linked = 0;
     trans.get_extension(linked); 
 
+    bool new_ccache_ext = false;
     ccache_state_extension* c_ext = 0;
     trans.get_extension(c_ext);
     if(c_ext == 0 && snooped_socket) {
+        new_ccache_ext = true;
         c_ext = new ccache_state_extension;
         trans.set_extension(c_ext);
     }
@@ -422,12 +423,11 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
 #endif
     
 
-    // what is command
     tlm_command cmd = trans.get_command();
+
 
     if(cmd == TLM_WRITE_COMMAND) 
       {
-	//printf("Foreign write %llx\n", addr);
 	foreign_write(addr);
       }
     if (UNCACHED_ADDRESS_SPACE64(addr) || linked) {
@@ -447,7 +447,8 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
                     data_length, 
                     c_ext, 
                     linked,
-                    delay,
+		    trans.ltd,
+                    delay_,
 		    trans.get_streaming_width());
 
                 if(success) {
@@ -467,7 +468,7 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
             // forward transaction
             if(c_ext)
                 c_ext->trans = Read;
-            initiator_socket->b_transport(trans, delay);
+            initiator_socket->b_transport(trans, delay_);
 
         } else if(cmd == TLM_WRITE_COMMAND && linked) {
             while(true) {
@@ -480,7 +481,8 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
                     data_length, 
                     c_ext, 
                     linked,
-                    delay,
+		    trans.ltd,
+                    delay_,
 		    trans.get_streaming_width());
 
                 if(success) {
@@ -498,15 +500,23 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
             }
             if(c_ext)
                 c_ext->trans = Write;
-            initiator_socket->b_transport(trans, delay);            
+            initiator_socket->b_transport(trans, delay_);
         } else {
             if(c_ext)
                 c_ext->trans = (cmd == TLM_READ_COMMAND) ? Read : Write;
-            
-            initiator_socket->b_transport(trans, delay);
 
-            return;
+	    // Pass on uncached
+            initiator_socket->b_transport(trans, delay_); 
+
         }
+
+	if(new_ccache_ext) {
+	  trans.get_extension(c_ext);
+	  if(c_ext != 0) {
+	    delete c_ext;
+	    trans.clear_extension<ccache_state_extension>(c_ext);
+	  }
+	}
 
         return;
     }
@@ -532,7 +542,8 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
                 data_ptr, 
                 data_length, 
                 c_ext, 
-                delay,
+		trans.ltd,
+                delay_,
 		trans.get_streaming_width()
 #if TRACECOMM
 		, proc_id
@@ -570,7 +581,8 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
                     benable_ptr, 
                     benable_length, 
                     c_ext,
-                    delay,
+		    trans.ltd,
+                    delay_,
 		    trans.get_streaming_width());
                 if(success) 
                     break;
@@ -586,6 +598,14 @@ void ccache::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
       default:
         // unknown command
         assert(0);
+    }
+
+    if(new_ccache_ext) {
+      trans.get_extension(c_ext);
+      if(c_ext != 0) {
+	delete c_ext;
+        trans.clear_extension<ccache_state_extension>(c_ext);
+      }
     }
 
     trans.set_response_status(tlm::TLM_OK_RESPONSE);
@@ -605,11 +625,11 @@ void ccache::secondary_lookup(
     u64_t addr,
     u8_t* &clinep,
     ccache_state_extension* &cse,
-    sc_time& delay,
+    sc_time& delay_,
     int rsize,
     int pid) {
 
-    PW_TLM_PAYTYPE* trans;
+    PRAZOR_GP_T* trans;
     u64_t line_addr = addr & ~(m_geometry.linesize - 1);
     CTRC(addr, printf("CCACHE::secondary_lookup() -> doing a secondary lookup for address 0x%lx; line address 0x%lx\n",
 		      addr, line_addr));
@@ -621,7 +641,7 @@ void ccache::secondary_lookup(
         line_addr,
         clinep,
         true,
-        delay,
+        delay_,
 	rsize,
         pid);
 }
@@ -633,12 +653,13 @@ ccache::way* ccache::lookup(
     u8_t** clinep, 
     u64_t& oldts, 
     state_t& retlstate,
-    sc_time& delay) {
+    lt_delay &ltd,
+    sc_time& delay_) {
 
     retlstate = Invalid;
     for(int i = 0; i < m_geometry.ways; i++) {
         way* w = m_ways[i];
-        state_t lstate = w->lookup(addr, index, tag, clinep, oldts, delay);
+        state_t lstate = w->lookup(addr, index, tag, clinep, oldts, ltd, delay_);
         if(lstate != Invalid) {
             CTRC(addr, printf("CCACHE::lookup() -> hit for address 0x%lx in way %d with cache line state %d\n", 
                               addr, i, lstate));
@@ -718,7 +739,7 @@ bool ccache::cold_write(
     u32_t dlength,
     u8_t* benable,
     ccache_state_extension* &cse, 
-    sc_time& delay,
+    sc_time& delay_,
     int rsize) {
 
     u64_t line_addr = addr & ~(m_geometry.linesize - 1);
@@ -763,7 +784,7 @@ bool ccache::cold_write(
         line_addr,
         topass,
         true,
-        delay,
+        delay_,
 	rsize);
 
 
@@ -776,7 +797,7 @@ bool ccache::cold_write(
 
     u64_t oldts;
     way* cway = NULL;
-    bool success = insert(addr, index, tag, &newdata[0], UniqueDirty, oldts, cway, delay, rsize);
+    bool success = insert(addr, index, tag, &newdata[0], UniqueDirty, oldts, cway, delay_, rsize);
     if(success) {
         CTRC(addr, 
              printf("CCACHE::cold_write() -> succesfull cold write 0x%lx; line address 0x%lx\n",
@@ -801,7 +822,8 @@ bool ccache::write_locked(
     u8_t* benable,
     u32_t blength,
     ccache_state_extension* &cse, 
-    sc_time& delay) {
+    lt_delay &ltd,
+    sc_time& delay_) {
     CTRC(addr,
          printf("CCACHE::write_locked() -> for address 0x%lx; offset %ld, index %ld, tag 0x%lx, dlength=%d\n",
                 addr, offset, index, tag, dlength));
@@ -816,7 +838,7 @@ bool ccache::write_locked(
     u8_t* clinep = 0;
     u64_t oldts;
     state_t clstate;
-    way* cway = lookup(addr, index, tag, &clinep, oldts, clstate, delay);
+    way* cway = lookup(addr, index, tag, &clinep, oldts, clstate, ltd, delay_);
 
     if(clstate != UniqueDirty) {
         CTRC(addr,
@@ -842,7 +864,8 @@ bool ccache::write(
     u8_t* benable,
     u32_t blength,
     ccache_state_extension* &cse, 
-    sc_time& delay,
+    lt_delay &ltd,
+    sc_time& delay_,
     int rsize) {
     CTRC(addr,
          printf("CCACHE::write() -> for address 0x%lx; offset %ld, index %ld, tag 0x%lx, dlength=%d\n",
@@ -858,7 +881,7 @@ bool ccache::write(
     u8_t* clinep = 0;
     u64_t oldts;
     state_t clstate;
-    way* cway = lookup(addr, index, tag, &clinep, oldts, clstate, delay);
+    way* cway = lookup(addr, index, tag, &clinep, oldts, clstate, ltd, delay_);
 
     bool success;
     
@@ -888,7 +911,7 @@ bool ccache::write(
               line_addr,
               edatap,
               false,
-              delay,
+              delay_,
 	      rsize);
 
 	  success = warm_write(cway, addr, index, offset, data, dlength, benable, blength, oldts, true);
@@ -898,7 +921,7 @@ bool ccache::write(
 	  break;
       }
       case Invalid: {
-	bool success = cold_write(addr, offset, index, tag, data, dlength, benable, cse, delay, rsize);
+	bool success = cold_write(addr, offset, index, tag, data, dlength, benable, cse, delay_, rsize);
           if(success) {
 #ifdef CMISSTY
               u64_t line_addr = addr & ~(m_geometry.linesize - 1);
@@ -950,7 +973,7 @@ bool ccache::insert(
     state_t news,
     u64_t& oldts, 
     way* &cway,
-    sc_time& delay,
+    sc_time& delay_,
     int rsize) {
 
     cway = lruw();
@@ -962,7 +985,7 @@ bool ccache::insert(
         return false;
     }
 
-    cway->insert(addr, index, tag, clinep, news, olds, delay, rsize);
+    cway->insert(addr, index, tag, clinep, news, olds, delay_, rsize);
 
     u64_t newts = cway->incts(ts, news);
     // this must succeed otherwise we are going to have
@@ -983,7 +1006,8 @@ bool ccache::locked_op(
     u32_t length,
     ccache_state_extension* &cse, 
     llsc_extension* &linked,
-    sc_time& delay,
+    lt_delay &ltd,
+    sc_time& delay_,
     int rsize) {
     
     CTRC(addr, 
@@ -995,7 +1019,7 @@ bool ccache::locked_op(
     u64_t oldts;
     state_t clstate;
     way* cway;
-    cway = lookup(addr, index, tag, &clinep, oldts, clstate, delay);
+    cway = lookup(addr, index, tag, &clinep, oldts, clstate, ltd, delay_);
     
     bool clhit = (clinep != 0);
 
@@ -1018,8 +1042,11 @@ bool ccache::locked_op(
                 line_addr,
                 clinep,
                 false,
-                delay,
+                delay_,
 		rsize);
+
+	    if(c_ext)
+	      delete c_ext;
         }
             
         u64_t newts = cway->incts(ts, Invalid);
@@ -1038,7 +1065,7 @@ bool ccache::locked_op(
             line_addr,
             clinep,
             true,
-            delay,
+            delay_,
 	    rsize);
 
         delete ncse;
@@ -1059,7 +1086,8 @@ bool ccache::read(
     u8_t* &destination,
     u32_t length,
     ccache_state_extension* &cse, 
-    sc_time& delay,
+    lt_delay &ltd,
+    sc_time& delay_,
     int rsize
 #if TRACECOMM
     , int pid
@@ -1074,7 +1102,7 @@ bool ccache::read(
     u64_t oldts;
     state_t clstate;
     way* cway;
-    cway = lookup(addr, index, tag, &clinep, oldts, clstate, delay);
+    cway = lookup(addr, index, tag, &clinep, oldts, clstate, ltd, delay_);
     
     u8_t sclinep[m_geometry.linesize];
 
@@ -1092,7 +1120,7 @@ bool ccache::read(
 	secondary_lookup(addr,
 			 clinep,
 			 cse,
-			 delay,
+			 delay_,
 			 rsize
 #if TRACECOMM
 			 , pid
@@ -1107,7 +1135,7 @@ bool ccache::read(
 
 	// 3. insert line to the cache
         state_t nstate = cse ? cse->state : UniqueClean;
-        if(!insert(addr, index, tag, clinep, nstate, oldts, cway, delay, rsize)) {
+        if(!insert(addr, index, tag, clinep, nstate, oldts, cway, delay_, rsize)) {
             return false;
         }
 
@@ -1154,8 +1182,9 @@ bool ccache::read(
     return true;
 }
 
-void ccache::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
-    sc_time delay = SC_ZERO_TIME;
+void ccache::peq_cb(PRAZOR_GP_T& trans, const tlm_phase& ph) {
+
+    sc_time cb_delay_ = SC_ZERO_TIME;
 
     ccache_state_extension* c_ext = 0;
     trans.get_extension(c_ext);
@@ -1179,7 +1208,7 @@ void ccache::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	        u8_t* clinep = 0;
 		u64_t oldts;
 		state_t clstate;
-		way* cway = lookup(line_addr, index, tag, &clinep, oldts, clstate, delay);
+		way* cway = lookup(line_addr, index, tag, &clinep, oldts, clstate, trans.ltd, cb_delay_);
 		
 		c_ext->state = clstate;
 
@@ -1252,7 +1281,7 @@ void ccache::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	        u8_t* clinep = 0;
 		u64_t oldts;
 		state_t clstate;
-		cway = lookup(line_addr, index, tag, &clinep, oldts, clstate, delay);
+		cway = lookup(line_addr, index, tag, &clinep, oldts, clstate, trans.ltd, cb_delay_);
 		
 		c_ext->state = clstate;
 		if(clstate == Invalid) {
@@ -1295,29 +1324,24 @@ void ccache::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	    if(cway != NULL && cway->m_owner[index] == myid)
 	      cway->m_owner[index] == -1;
 #endif	    
-
 	    break;
 	}
-	  
     }
     tlm_phase nph = END_REQ;
     //cout << name() << ": delay after snooping is = " << delay << "\n";
-    snooped_socket[0]->nb_transport_bw(trans, nph, delay);
+
+    snooped_socket[0]->nb_transport_bw(trans, nph, cb_delay_);
 }
 
 
 tlm::tlm_sync_enum ccache::nb_transport_fw(
     int id,
-    PW_TLM_PAYTYPE& trans,
+    PRAZOR_GP_T& trans,
     tlm_phase& ph,
     sc_time& delay) {
 
-  //<<<<<<< HEAD
-  sc_time new_delay = SC_ZERO_TIME;
-  m_peq.notify(trans, ph, new_delay);
-
-  // =======
-  //    m_peq.notify(trans, ph);
+  sc_time new_delay_ = SC_ZERO_TIME;
+  m_peq.notify(trans, ph, new_delay_);
 
   return tlm::TLM_ACCEPTED;
 }
@@ -1342,6 +1366,7 @@ u64_t ccache::hit_reads(int pid) {
 
 void ccache::stat_report(const char *msg, FILE *fd, bool reset) {
     if(fd) {
+        fprintf(fd, "\n\n"); 
         fprintf(fd, "  Hits    Misses      Total       llsc    Contentions   READS %s\n", name());
         fprintf(fd, "-----------------------------------------------------\n");
         fprintf(fd, "%6ld%10d%11d%11d%15d\n",
@@ -1391,56 +1416,4 @@ void ccache::stat_report(const char *msg, FILE *fd, bool reset) {
     if(reset) {
         m_stats.reset();
     }
-}
-
-PW_TLM_PAYTYPE* ccache_state_mm_t::allocate() {
-  PW_TLM_PAYTYPE* ptr;
-
-  lck.lock();
-  if(free_list) {
-    ptr = free_list->trans;
-    empties = free_list;
-    free_list = free_list->next;
-  }
-  else {   
-    ptr = new (PW_TLM_PAYTYPE)(this);
-  }
-  lck.unlock();
-
-  if(ptr->get_ref_count() < 0)
-    while(ptr->get_ref_count() != 0)
-      ptr->acquire();
-
-  assert(ptr->get_ref_count() == 0);
-
-  return ptr;
-}
-
-
-void ccache_state_mm_t::free(PW_TLM_PAYTYPE* trans) 
-{
-  // do not need to release extension as they are all allocated on stack
-  // so clearing should be enough
-  ccache_state_extension* cme = 0;
-  trans->get_extension(cme);
-  if(cme) {
-    delete cme;
-    trans->clear_extension<ccache_state_extension>(cme);
-  }
-
-  // clears the extension pointers for sure
-  trans->reset();
-
-  lck.lock();
-  if(!empties) {
-    empties = new access;
-    empties->next = free_list;
-    empties->prev = 0;
-    if(free_list)
-      free_list->prev = empties;
-  }
-  free_list = empties;
-  free_list->trans = trans;
-  empties = free_list->prev;
-  lck.unlock();
 }

@@ -5,23 +5,9 @@
 
 #include "systemc.h"
 #include "tlm.h"
+#include "prazor.h"
 #include "tenos.h"
 #include "../gdbrsp/vhls_soc_debug.h"
-
-#ifndef POWER3
-#ifdef TLM_POWER3
-#include "tlm_power.h"
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-typedef int pw_customer_acct; /* use a simple int as a placeholder */
-#define PW_TLM3(X)
-#define POWER3(X)
-#endif
-#endif
-
 #include "cpu_busaccess.h"
 
 // An interface/wrapper for various forms of the CPU (e.g. fast, slow, power-annotated, verilated ...).

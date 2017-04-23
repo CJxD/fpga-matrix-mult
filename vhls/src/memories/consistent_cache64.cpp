@@ -130,7 +130,7 @@ cache64::cacheway::mesi_t cache64::cacheway::operate(mesi_t op, u64_t addr, int 
 //
 // Check whether cache line is changed and if so invalidates entries in all other caches.
 //
-void cache64::operate(cacheway *cw, cacheway::mesi_t op, u64_t addr, int dmap, sc_time &delay)
+void cache64::operate(cacheway *cw, cacheway::mesi_t op, u64_t addr, int dmap, sc_time &delay_)
 {
   sysc_assert(cw);
   
@@ -141,10 +141,10 @@ void cache64::operate(cacheway *cw, cacheway::mesi_t op, u64_t addr, int dmap, s
 } 
 
 // we should only clean one cache line
-void cache64::cacheway::clean(sc_time &delay, 
-					 int dmap, 
-					 cache_miss_extension* cme, 
-					 bool force)
+void cache64::cacheway::clean(sc_time &delay_, 
+			      int dmap, 
+			      cache_miss_extension* cme, 
+			      bool force)
 {
   waylock->lock();
   if(Status[dmap] != modified 
@@ -240,8 +240,8 @@ void cache64::cacheway::clean(sc_time &delay,
     POWER3(parent->pw_module_base::record_energy_use(Data->m_read_energy_op * ops, trans)); // Read data
 
 #if !MANUAL_DELAY
-    delay += Tags->m_sr_latency;
-    delay += Data->m_sr_latency * ops;
+    AUGMENT_LT_DELAY(trans, delay,  Tags->m_sr_latency);
+    AUGMENT_LT_DELAY(trans, delay,  Data->m_sr_latency * ops);
 #endif
 
     trans->set_data_ptr(Data->read8p(dmap*parent->geom.linesize)+d);
@@ -286,7 +286,7 @@ void cache64::cacheway::clean(sc_time &delay,
 bool cache64::cacheway::insert(u64_t addr, 
 			       int dmap, 
 			       u8_t *cline, 
-			       sc_time &delay,
+			       sc_time &delay_,
 			       cache_miss_extension* cme,
 			       mesi_t new_state)
 {
@@ -304,7 +304,7 @@ bool cache64::cacheway::insert(u64_t addr,
       // if address is different need to evict
       POWER3(parent->log_energy_use(Tags->m_read_energy_op)); // Read tags - double counted?
 #if !MANUAL_DELAY
-      delay += Tags->m_sr_latency;
+      AUGMENT_LT_DELAY(trans, delay,  Tags->m_sr_latency);
 #endif
       if (addr != (*Tags)[dmap])
 	{
@@ -336,7 +336,7 @@ bool cache64::cacheway::insert(u64_t addr,
 
   POWER3(parent->log_energy_use(Tags->m_write_energy_op)); // Write tags
 #if !MANUAL_DELAY
-  delay += Tags->m_sr_latency;
+  AUGMENT_LT_DELAY(trans, delay,  Tags->m_sr_latency);
 #endif
   Tags->write(dmap, addr);
 
@@ -344,7 +344,7 @@ bool cache64::cacheway::insert(u64_t addr,
   //std::cout << "Tmp debug " << parent->name() << " ops=" << ops << "\n";
   POWER3(parent->log_energy_use(Data->m_write_energy_op * ops)); // Write data
 #if !MANUAL_DELAY
-  delay += Data->m_sr_latency * ops;
+  AUGMENT_LT_DELAY(trans, delay,  Data->m_sr_latency * ops);
 #endif
  
   memcpy(Data->read8p(dmap * parent->geom.linesize), cline, parent->geom.linesize);
@@ -392,7 +392,7 @@ bool cache64::cacheway::lookup(u64_t addr, int dmap, u8_t **clinep, sc_time &max
 
 
 // clean: write out dirty contents: only some lanes of a burst may be dirty and some bursts may not need issuing.
-void cache64::write_buffer::clean(sc_time&delay, cache_miss_extension* ext)
+void cache64::write_buffer::clean(sc_time &delay, cache_miss_extension* ext)
 {
 
   WBTRC(printf("WRITE BUFFER clean() -> initiating sending of data ");	\
@@ -572,7 +572,7 @@ int cache64::secondary_lookup(u64_t line_addr,
       trans->set_data_ptr(cline+d);
 //define DETAILED_LOOK
 #ifdef DETAILED_LOOK
-      sc_time start_t = delay + sc_time_stamp();
+      sc_time start_t = COLLECT_LT_DELAY(delay_ + sc_time_stamp(), trans.ltd.point());
 #endif
       POWER3(PW_TLM3(trans->pw_set_origin(this, PW_TGP_ADDRESS | PW_TGP_ACCT_SRC, &secondary_bus_tracker))); // Read a line
       if(inita_socket.size() > 0) // is this IF really needed?
@@ -580,8 +580,8 @@ int cache64::secondary_lookup(u64_t line_addr,
       else
 	inita_socket->b_transport(*trans, delay);
 #ifdef DETAILED_LOOK
-      sc_time end_t = delay + sc_time_stamp();
-      cout << name() << " backside service time " << end_t-start_t << " (delay=" << delay << ")\n"; 
+      sc_time end_t =  COLLECT_LT_DELAY(delay + sc_time_stamp(), trans.ltd.point());
+      cout << name() << " backside service time " << end_t-start_t << " (delay=" << trans.ltd << ")\n"; 
 #endif
 
       POWER3(PW_TLM3(trans->pw_terminus(this)));
@@ -654,7 +654,7 @@ cache64::cacheway *cache64::lookup(bool servicef,
           }
       }
 #if !MANUAL_DELAY
-  delay += max_lookup_delay;
+  AUGMENT_LT_DELAY(trans, delay,  max_lookup_delay);
 #endif
 
   if (!cline && !servicef) 
@@ -666,7 +666,7 @@ cache64::cacheway *cache64::lookup(bool servicef,
       stats.hits += 1;
       datap1 = ((u64_t*)(cline)) + loffset; // loffset in words
 #if MANUAL_DELAY
-      delay += clock_period * hit_cycle_time;
+      AUGMENT_LT_DELAY(trans, delay,  clock_period * hit_cycle_time);
 #endif
 
 #if 0
@@ -674,7 +674,7 @@ cache64::cacheway *cache64::lookup(bool servicef,
       int ops = parent->geom.linesize * 8 / Data->width;
       //std::cout << "Tmp debug " << parent->name() << " ops=" << ops << "\n";
       POWER3(parent->pw_module_base::record_energy_use(Data->m_read_energy_op * ops, trans)); // Read data
-      delay += Data->m_sr_latency * ops;
+      AUGMENT_LT_DELAY(trans, delay,  Data->m_sr_latency * ops);
 #endif
 
       operate_miss_type(cw, dmap, cme);
@@ -794,6 +794,7 @@ cache64::cacheway *cache64::lookup(bool servicef,
 }
 
 void cache64::stat_header(const char *msg, FILE *fd) {
+  fprintf(fd, "\n\n"); 
   fprintf(fd, "   Hits    Misses   Sharing Evictions  Ratio   Writes   Reads   Id\n");
   fprintf(fd, "------------------------------------------------------------------\n");
 }
@@ -891,7 +892,7 @@ u64_t *cache64::write_buffer::hit(u64_t addr, int loffset)
 { 
   //  return (addr == m_addr) ? &((u64_t *)cline)[loffset]:0; 
   // TODO  POWER3(parent->pw_module_base::record_energy_use( ); // Write buffer energy read.
-  // m_delay +=   .. read Data
+  // m_AUGMENT_LT_DELAY(trans, delay,    .. read Data)
   if (addr == m_addr) {
     WBTRC(printf("WRITE BUFFER hit() -> present\n"));
     return (u64_t *)(cline.read8p(loffset*8));
@@ -1167,7 +1168,7 @@ void cache64::write_back(PW_TLM_PAYTYPE &trans,
       buf0->mark_dirty(len, loffset, lanes, bel);
       buf0->wbl.unlock();
       
-      delay += buf0->data_latency(len);      
+      AUGMENT_LT_DELAY(trans, delay,  buf0->data_latency(len));
     }
   else  // If the line is in the cache then update that, else use write buffer.
     {
@@ -1282,7 +1283,7 @@ void cache64::b_transport(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
 // TLM-2 blocking transport method
 void cache64::b_access(int id, 
 		       PW_TLM_PAYTYPE &trans, 
-		       sc_time &delay, 
+		       sc_time &delay_, 
 		       u64_t addr)
 {
   // we can call this method with id either equal to zero or equal to one.
@@ -1299,7 +1300,7 @@ void cache64::b_access(int id,
   u64_t line_addr = addr & ~(geom.linesize-1);
   u32_t len = trans.get_data_length();
 
-  sc_time start_time = delay + sc_time_stamp();
+  sc_time start_time = COLLECT_LT_DELAY(delay_ + sc_time_stamp(), trans.ltd.point());
   tlm::tlm_command cmd = trans.get_command();
   pw_customer_acct *customer_acct = 0;
   PW_TLM3(customer_acct = trans.get_customer_id());  
@@ -1408,7 +1409,7 @@ void cache64::b_access(int id,
 	//name(), addr, dmap, geom.dmap_shift);
 	// Ignore byte lanes on read and return complete word.
 	
-	delay += buf0->data_latency(len);
+	AUGMENT_LT_DELAY(trans, delay,  buf0->data_latency(len));
 	// TODO power...
 
 	if (c_ext) c_ext->resp = CT_MISS_DIRTY;
@@ -1458,8 +1459,7 @@ void cache64::b_access(int id,
   
   trans.set_response_status(tlm::TLM_OK_RESPONSE);
   
-  sc_time end_time = delay + sc_time_stamp();
-
+  sc_time end_time = COLLECT_LT_DELAY(delay_ + sc_time_stamp(), trans.ltd.point());
 // end of transact: pass down dynamic energy use.
   POWER3(log_energy_use(std_energy_op));
 #if PW_TLM_PAYLOAD > 0 

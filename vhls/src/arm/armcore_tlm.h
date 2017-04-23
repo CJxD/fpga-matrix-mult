@@ -61,11 +61,12 @@ struct cp_request_extension : tlm::tlm_extension<cp_request_extension> {
 
 class armcore_tlm: public COREISA_IF, public armisa
 {
-  sc_time lt_i_delay;
-  sc_time lt_d_delay;
   bool over;
   bool halted;
-  tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
+  lt_delay master_runahead;
+  lt_delay lt_i_delay;
+  lt_delay lt_d_delay;
+
   POWER3(pw_energy m_instruction_energy);
   POWER3(pw_energy m_mispredict_energy_penalty);
 
@@ -87,7 +88,7 @@ class armcore_tlm: public COREISA_IF, public armisa
 
   ins_fetcher_t(armcore_tlm *parent) : parent(parent) { cached_adr = 1; // an invalid address
     };
-      bool fetch(u32_t adr, u32_t &i, sc_time &lt_busdelay);
+      bool fetch(u32_t adr, u32_t &i, lt_delay &runahead);
   } ins_fetcher;
 
   void lt_all_sync();

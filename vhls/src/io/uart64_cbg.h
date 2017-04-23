@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include "prazor.h"
 #include "tenos.h"
 #include "systemc.h"
 #include "tlm.h"
@@ -52,18 +53,6 @@
 #define UART2_STATUS_TX_FULL  (0x10)  //
 #define UART2_STATUS_TX_EMPTY (0x08)  //
 #define UART2_STATUS_RX_EMPTY (0x02)  //
-
-
-
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 
 
@@ -104,7 +93,7 @@ class uart64_cbg : public sc_module
 
   
   // blocking transport
-  void b_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay);
+  void b_access(int id, PRAZOR_GP_T &trans, sc_time &delay);
 
   int testch();
   char rdch();

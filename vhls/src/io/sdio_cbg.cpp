@@ -161,7 +161,7 @@ void sdio_cbg::run() {
     }
 }
 
-void sdio_cbg::b_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void sdio_cbg::b_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
   tlm_command cmd = trans.get_command();
   u32_t adr = (u32_t)trans.get_address();
   u8_t* ptr = trans.get_data_ptr();
@@ -1245,7 +1245,7 @@ void sdio_cbg::parse_block_size_and_count() {
 void sdio_cbg::do_adma2_fds() {    
     u32_t descriptor_adr = m_ADMA_system_address;
 
-    PW_TLM_PAYTYPE trans;
+    PRAZOR_GP_T trans;
     u64_t descriptor_data = 0;
     trans.set_byte_enable_length(0);
     trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
@@ -1328,7 +1328,7 @@ void sdio_cbg::do_adma2_tfr(u32_t addr, u16_t len, bool end) {
     // length should always be multiple of 8?
     assert((length % 8) == 0);
     for(int i = 0; i < (length/8); i++) {
-        PW_TLM_PAYTYPE trans;
+        PRAZOR_GP_T trans;
         trans.set_byte_enable_length(0);
         trans.set_byte_enable_ptr(0);
         trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);

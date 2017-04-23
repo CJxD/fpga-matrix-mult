@@ -9,6 +9,7 @@
 //
 
 #include "systemc.h"
+#include "prazor.h"
 #include "tlm.h"
 #include "tlm_utils/tlm_quantumkeeper.h"
 #include "tlm_2_interfaces/tlm_dmi.h"
@@ -16,18 +17,6 @@
 
 
 #include "mips64.h"
-
-#ifndef POWER3
-#ifdef TLM_POWER3
-#include <tlm_power>
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
-#endif
 
 
 #define BENCH_RESET_TIME 10
@@ -86,10 +75,11 @@ class mips64_btlm : public mips64, public sc_module
   void reset(bool enable_first_to_run);
 
  protected:
-  sc_time lt_busdelay;    // Loosely timed delay on external ops.
+  lt_delay lt_busdelay;    // Loosely timed delay on external ops.
 
  private:
-  tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
+  lt_delay master_runahead;
+  //tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
   bool m_over;
   bool *ext_interrupt; // How to direct to one spoke?
   void hw_interrupt(const char *);

@@ -61,14 +61,13 @@ void dramsim_sc_wrapper::op_complete(u32_t id, u64_t adr, u64_t done_cycle)
 
 }
 
+
+
 void dramsim_sc_wrapper::update()
 {
   ms->update();
   //cout << ms->currentClockCycle << "  bb\n";
 }
-
-
-
 
 
 u32_t dramsim_sc_wrapper::width() // DRAM databus width in bits.
@@ -166,6 +165,9 @@ dramsim_sc_wrapper::dramsim_sc_wrapper(sc_core::sc_module_name names,
     {
       port0.register_get_direct_mem_ptr(this, &dramsim_sc_wrapper::get_direct_mem_ptr);
     }
+
+  llsc_energy_op = pw_energy(0.0, PW_nJ);  // Not modelled at the moment.
+
   traceregions = 0;
 #if TRACECOMM
   for(int i = 0; i < 255; ++i)
@@ -178,7 +180,7 @@ dramsim_sc_wrapper::dramsim_sc_wrapper(sc_core::sc_module_name names,
 //
 #ifdef TLM_POWER3
 void dramsim_sc_wrapper::energy_accounter(sc_pwr::pw_agent_record *p_agent, 
-					  PW_TLM_PAYTYPE *trans,
+					  PRAZOR_GP_T *trans,
 					  tlm::tlm_command cmd) 
 // NB call this at end of simulation if not called often. Called at end of every xaction at the moment.
 {
@@ -288,7 +290,7 @@ void dramsim_sc_wrapper::loadme(const char *filename, bool elff, u64_t *entrypt)
 
 //
 //
-void dramsim_sc_wrapper::blockwhile(TransactionType transType, u64_t adr, sc_time &delay)
+void dramsim_sc_wrapper::blockwhile(TransactionType transType, u64_t adr, lt_delay &ltd, sc_time &delay)
 {
   // If we are the first/only then we must clock the model, otherwise, wait for other thread to
   // advance the subsystem until we are serviced.
@@ -323,7 +325,7 @@ void dramsim_sc_wrapper::blockwhile(TransactionType transType, u64_t adr, sc_tim
   while(Queue[slot].active)
     {
 #if !MANUAL_DELAY
-      //delay += clock_period;
+      //AUGMENT_LT_DELAY(trans.ltd, delay,  clock_period);
       /*DRTRC(cout << name() << ": blockwhile(): adding delay: " << clock_period 
 	<< " queued_items = " << m_queued_items << endl);*/
 #endif
@@ -331,7 +333,8 @@ void dramsim_sc_wrapper::blockwhile(TransactionType transType, u64_t adr, sc_tim
       //keeper(delay);
     }
 
-  delay += Queue[slot].delay;
+  AUGMENT_LT_DELAY(ltd, delay,  Queue[slot].delay);
+  //cout << "dram queued xation for  " << Queue[slot].delay << "\n";
   Queue[slot].delay = SC_ZERO_TIME;
   assert(!m_qlock.lock());
   m_queued_items -= 1; 
@@ -370,14 +373,14 @@ void dramsim_sc_wrapper::end_of_simulation()
   stat_report("end_of_simulation", stdout, 0);
 }
 
-tlm::tlm_sync_enum dramsim_sc_wrapper::nb_transport_fw(PW_TLM_PAYTYPE& trans,
+tlm::tlm_sync_enum dramsim_sc_wrapper::nb_transport_fw(PRAZOR_GP_T& trans,
 						       tlm::tlm_phase& phase,
 						       sc_time& delay) {
   m_peq.notify(trans, phase, delay);
   return tlm::TLM_ACCEPTED;
 }
 
-void dramsim_sc_wrapper::peq_cb(PW_TLM_PAYTYPE& trans, const tlm::tlm_phase& ph) {
+void dramsim_sc_wrapper::peq_cb(PRAZOR_GP_T& trans, const tlm::tlm_phase& ph) {
   sc_time delay = SC_ZERO_TIME;
 
   switch(ph) {
@@ -394,7 +397,7 @@ void dramsim_sc_wrapper::peq_cb(PW_TLM_PAYTYPE& trans, const tlm::tlm_phase& ph)
   port0->nb_transport_bw(trans, bw_phase, delay);
 }
 
-void dramsim_sc_wrapper::b_access(PW_TLM_PAYTYPE& trans, sc_time& delay) {
+void dramsim_sc_wrapper::b_access(PRAZOR_GP_T& trans, sc_time& delay) {
 
   DRTRC(cout << name() << ": start time = " << sc_time_stamp()
 	<< " and delay = " << delay << endl);
@@ -409,11 +412,11 @@ void dramsim_sc_wrapper::b_access(PW_TLM_PAYTYPE& trans, sc_time& delay) {
   u8_t* lanes = trans.get_byte_enable_ptr();
   //printf("%s b_access " PFX64 "\n", name(), adr);
 #if !MANUAL_DELAY
-  //delay += clock_period; // One cycle overhead always added.
+  //AUGMENT_LT_DELAY(trans.ltd, delay,  clock_period; // One cycle overhead always added.
   // adding clock boundary crossing between controller and DRAM channel
   // assuming very optimisic implementation where it takes 3 cycles
   // at the source and 5 cycles at the destination (MP - 31 Jul 12)
-  delay += 3 * clock_period + 5 * sc_time(tCK, SC_NS);
+  AUGMENT_LT_DELAY(trans.ltd, delay,  3 * clock_period + 5 * sc_time(tCK, SC_NS));
 #endif
 
   bool not64 = false;
@@ -491,7 +494,7 @@ void dramsim_sc_wrapper::b_access(PW_TLM_PAYTYPE& trans, sc_time& delay) {
 	  trans.set_response_status( tlm::TLM_ADDRESS_ERROR_RESPONSE );
 	  return;
 	}
-      if (dynload_done) blockwhile(DATA_READ, adr, delay);
+      if (dynload_done) blockwhile(DATA_READ, adr, trans.ltd, delay);
       m_stats.m_read_bytes += len*8;
       for (int dd=0; dd<len; dd+=8)
 	{
@@ -555,7 +558,7 @@ void dramsim_sc_wrapper::b_access(PW_TLM_PAYTYPE& trans, sc_time& delay) {
       }
 
       // TODO: can write post - make a selectable mode
-      if(dynload_done) blockwhile(DATA_WRITE, adr, delay);
+      if(dynload_done) blockwhile(DATA_WRITE, adr, trans.ltd, delay);
       int bel = trans.get_byte_enable_length();
       m_stats.m_write_bytes += len*8; // We currently count a byte as written even if not byte enabled.
       for (int dd=0; dd<len; dd+=8)
@@ -602,10 +605,10 @@ void dramsim_sc_wrapper::b_access(PW_TLM_PAYTYPE& trans, sc_time& delay) {
     }
   
 #if MANUAL_DELAY
-  delay += manual_delay * clock_period;
+		   AUGMENT_LT_DELAY(trans.ltd, delay,  manual_delay * clock_period);
 #else
   // crossing from DRAM channel to memory controller
-  delay += 3 * sc_time(tCK, SC_NS) + 5 * clock_period;
+		   AUGMENT_LT_DELAY(trans.ltd, delay, 3 * sc_time(tCK, SC_NS) + 5 * clock_period);
 #endif
 
   // Set DMI hint to indicated whether DMI is encouraged.  
@@ -624,7 +627,8 @@ void dramsim_sc_wrapper::b_access(PW_TLM_PAYTYPE& trans, sc_time& delay) {
   // Obliged to set response status to indicate successful completion
   trans.set_response_status(tlm::TLM_OK_RESPONSE);
 
-  m_stats.m_row_activations = ms->memoryController->activations; // upcopy the activation count. - reset of this metric wont work correctly but we will use checkpointing instead of resets going forward.
+  m_stats.m_refreshes = ms->memoryController-> m_freerunning_stats.refreshes; // upcopy the activation count.
+  m_stats.m_row_activations = ms->memoryController-> m_freerunning_stats.activates;
   //printf ("upcopy  adr=" PFX64 " activations=%llu \n", adr, m_stats.m_row_activations );
   POWER3(energy_accounter(&l_agent, &trans, cmd));
 
@@ -633,7 +637,7 @@ void dramsim_sc_wrapper::b_access(PW_TLM_PAYTYPE& trans, sc_time& delay) {
 }
 
 
-bool dramsim_sc_wrapper::get_direct_mem_ptr(PW_TLM_PAYTYPE&, tlm::tlm_dmi &dmi_data)
+bool dramsim_sc_wrapper::get_direct_mem_ptr(PRAZOR_GP_T&, tlm::tlm_dmi &dmi_data)
 {
   if (last_page)
     {
@@ -651,9 +655,10 @@ bool dramsim_sc_wrapper::get_direct_mem_ptr(PW_TLM_PAYTYPE&, tlm::tlm_dmi &dmi_d
 
 void dramsim_sc_wrapper::stat_report(const char *msg, FILE *fd, bool resetf)
 {
-  if (fd) fprintf(fd, "%s:%s DRAM %i MByte stats: read_ops=" PFI64 ", write_ops=" PFI64 ", read_bytes=" PFI64 ", write_bytes=" PFI64 " row_activations=" PFI64 "\n", name(), msg, 
+  if (fd) fprintf(fd, "%s:%s DRAM %i MByte stats: read_ops=" PFI64 ", write_ops=" PFI64 ", read_bytes=" PFI64 ", write_bytes=" PFI64 " refreshes=" PFI64 " row_activations=" PFI64 "\n", name(), msg, 
 		  ini->megsOfMemory,
-		  m_stats.m_read_ops, m_stats.m_write_ops, m_stats.m_read_bytes, m_stats.m_write_bytes, m_stats.m_row_activations);
+		  m_stats.m_read_ops, m_stats.m_write_ops, m_stats.m_read_bytes, m_stats.m_write_bytes, 
+		  m_stats.m_refreshes, m_stats.m_row_activations);
   assert(ms);
   ms->printStats(false); // What's  the difference ? final or otherwise?  we need a reset api on this.
   //  ms->printStats(true);
@@ -747,7 +752,7 @@ TENOS_KIND_DEFINITION(dramsim_sc_wrapper)
 
 //
 //
-void dramsim_ini_t::set_as_an_example(int no, int sizeInMegs)
+void dramsim_ini_t::set_as_an_example(int no_, int sizeInMegs)
 {
   deviceIniFilename = "../dramsim2/dist/system.ini.example";
   //systemIniFilename = "../dramsim2/dist/ini/DDR2_micron_16M_8b_x8_sg3E.ini";

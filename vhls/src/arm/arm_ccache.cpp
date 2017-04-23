@@ -48,7 +48,7 @@ void arm_ccache::set_PoU(bool is_PoU) {
     }
 }
 
-void arm_ccache::b_cp15_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_ccache::b_cp15_access(int idx, PRAZOR_GP_T &trans, sc_time &delay) {
     cp15_cache_control_extension* ext = 0;
     trans.get_extension(ext);
     assert(ext);
@@ -88,7 +88,7 @@ void arm_ccache::b_cp15_access(int idx, PW_TLM_PAYTYPE &trans, sc_time &delay) {
                 u8_t* clinep = 0;
                 u64_t oldts;
                 state_t clstate;
-                way *cway = lookup(addr, index, tag, &clinep, oldts, clstate, delay);
+                way *cway = lookup(addr, index, tag, &clinep, oldts, clstate, trans.ltd, delay);
 		
                 if(cway != NULL) {
                     u64_t ts = cway->m_status[index].load();
@@ -199,7 +199,7 @@ void arm_ccache::foreign_write(u64_t addr) // overload
 {
   if (abt_initiator_socket)
     {
-      PW_TLM_PAYTYPE trans;
+      PRAZOR_GP_T trans;
       trans.set_byte_enable_length(0);
       trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
       trans.set_read();

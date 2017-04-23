@@ -1186,7 +1186,7 @@ struct SequentialCore {
 
   bool eval_bdoor_read(u64_t memaddr, u64_t &rdata)
   {
-    sc_time &delay = parent->lt_d_delay;
+    lt_delay &delay = parent->lt_d_delay;
 #include "backdoor_reads.C"
   }
 
@@ -1296,10 +1296,11 @@ struct SequentialCore {
       TransOp uop;
       uopimpl_func_t synthop = null;
 
-      if (parent->m_qk.need_sync()) parent->m_qk.sync();
-      sc_time ins_start = parent->m_qk.get_current_time();
-      parent->lt_i_delay = SC_ZERO_TIME;
-      parent->lt_d_delay = SC_ZERO_TIME;
+      parent->master_runahead.perhaps_sync();
+      //if (parent->m_qk.need_sync()) parent->m_qk.sync();
+      //sc_time ins_start = parent->m_qk.get_current_time();
+      parent->lt_i_delay = parent->master_runahead;
+      parent->lt_d_delay = parent->master_runahead;
 
       // MP - 31May13 = check if instruction cache has a line
       // that contains the instruction that we are about to execute
@@ -1586,7 +1587,7 @@ struct SequentialCore {
           }
 
           Waddr mfn = (sfr.physaddr << 3) >> 12;
-	  // MP 29May13 - we do not have self modified code so we do not
+	  // MP 29May13 - we do not have self-modified code so we do not
 	  // need to set page to dirty
           //smc_setdirty(mfn); // why is this being passed zero?
 	}
@@ -1667,9 +1668,9 @@ struct SequentialCore {
         }
       }
 
-      sc_time d_end = parent->lt_d_delay + sc_time_stamp();
-      sc_time i_end = parent->lt_i_delay + sc_time_stamp();
-      sc_time ins_end = ins_start;
+      parent->lt_i_delay = parent->master_runahead;
+      parent->lt_d_delay = parent->master_runahead;
+      sc_time ins_end = SC_ZERO_TIME;
 
       if unlikely (pause || failed_sc)
 	{
@@ -1688,11 +1689,12 @@ struct SequentialCore {
           ins_end += parent->m_effective_instruction_period;
       }
 
-
-#define TMAX(X, Y) ((X)>(Y)?(X):(Y))
-      sc_time mx = TMAX(ins_end, TMAX(d_end, i_end));
+      parent->master_runahead += ins_end;
+      parent->master_runahead << parent->lt_i_delay;
+      parent->master_runahead << parent->lt_d_delay;
+	//sc_time mx = TMAX(ins_end, TMAX(d_end, i_end));
       //std::cout << "Advancing time to " << mx << " from " <<  sc_time_stamp() << "\n";
-      parent->m_qk.set(mx-sc_time_stamp());
+      //parent->m_qk.set(mx-sc_time_stamp());
       //std::cout << "Time now " << sc_time_stamp() << "\n";
     }
 

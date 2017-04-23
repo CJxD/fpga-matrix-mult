@@ -112,6 +112,12 @@ private:
 	BusPacket *outgoingDataPacket;
 	unsigned dataCyclesLeft;
  public:
+	// Added by DJG for Prazor - this is not cleared every dramsim2 epoch.
+	struct {
+	  uint64_t activates; 
+	  uint64_t refreshes; 
+	} m_freerunning_stats;
+
 	uint64_t activations;
 	uint64_t totalTransactions;
  private:

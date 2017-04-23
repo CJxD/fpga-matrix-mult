@@ -4,19 +4,10 @@
 #ifndef __SMALLRAM_H__
 #define __SMALLRAM_H__
 
-#ifdef TLM_POWER3
-#include "tlm_power.h"
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-typedef int pw_customer_acct; /* use a simple int as a placeholder */
-#define PW_TLM3(X)
-#define POWER3(X)
-#endif
 
 #include <systemc.h>
+#include "prazor.h"
+
 
 class smallramp {
   public:
@@ -39,7 +30,10 @@ class smallram : public sc_module
         m_write_energy_op = 2.0 * m_read_energy_op; // rule of thumb!
         pw_voltage vcc = get_vcc();
         m_sr_latency = m_sr_latency / vcc.to_volts();
+	cout << "smallram rez name=" << name() << "  latency=" << m_sr_latency << "  read_energy=" << m_read_energy_op << "\n";
 #endif
+
+
     }
 
     T operator[] (u64_t idx) { 

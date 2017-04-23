@@ -12,6 +12,7 @@
 #include "tlm_utils/multi_passthrough_initiator_socket.h"
 #include "tlm_utils/multi_passthrough_target_socket.h"
 #include "tenos.h"
+#include "prazor.h"
 
 #include <stdio.h>
 #include <math.h>
@@ -19,15 +20,6 @@
 #include <algorithm>
 #include <functional>
 
-#ifdef TLM_POWER3
-#include <tlm_power>
-using namespace sc_pwr;
-#define POWER3(X) X
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
 
 #if 0
 #define VMDEBUG(X) X

@@ -487,4 +487,14 @@ u32_t tenos_simulator_cmd(const char *msg, int cmd, int arg0, int arg1, u32_t *r
   return 0;
 }
 
+// MOVE ME TODO
+#include "lt_delay.h"
+std::ostream & operator<<(std::ostream &Str, lt_delay &v) 
+{ 
+  Str << v.point();
+  return Str;
+}
+
+
+
 // eof

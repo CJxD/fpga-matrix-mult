@@ -27,12 +27,13 @@ const int enable_asym = 5;
 
 #define BACKDOOR_TRACE_ENABLED(X)  (busaccess.traceregions && busaccess.traceregions->check(0, TENOS_TRACE_IO_READ|TENOS_TRACE_IO_WRITE))
 
+
 uint8_t armcore_tlm::armisa_write1(uint32_t vmemaddr, uint64_t wdata, u2_t size_code, u32_t *scp)  // Return 0 on ok operation
 {
   u32_t memaddr = vmemaddr;
   u8_t success = 1;
 
-  sc_time &delay = lt_d_delay;
+  lt_delay &delay = lt_d_delay; // Setup an alias for old coding of backdoors - their time is fictional anyway.
 #include "backdoor_writes.C"
 
   u64_t a64 = xlat32to64(memaddr);
@@ -126,6 +127,7 @@ uint8_t armcore_tlm::armisa_write1(uint32_t vmemaddr, uint64_t wdata, u2_t size_
   return success;  // Return 1 on ok ARM write operation - return codes being lost?
 }
 
+
 bool armcore_tlm::armisa_read1(u32_t vmemaddr, u2_t size_code, u1_t instructionf,  bool linkedf, bool mmu)
 {
   u32_t memaddr = vmemaddr;
@@ -134,7 +136,6 @@ bool armcore_tlm::armisa_read1(u32_t vmemaddr, u2_t size_code, u1_t instructionf
   
   if (memaddr == 0xFFFFfffc)
     {
-
       // spurious read on reset - please tidy up
       read_data = 0;
       return 1;
@@ -145,7 +146,6 @@ bool armcore_tlm::armisa_read1(u32_t vmemaddr, u2_t size_code, u1_t instructionf
     }
   else
     {
-      sc_time &delay = lt_d_delay;
 #include "backdoor_reads.C"
       u64_t a64 = xlat32to64(memaddr);
       switch(size_code)
@@ -255,7 +255,7 @@ u1_t armcore_tlm::wbuf_logged()
   cp_request_extension ext(cpr, cpm, op1, op2);
   u32_t data;
 
-  PW_TLM_PAYTYPE trans;
+  PRAZOR_GP_T trans;
   trans.set_extension(&ext);
   trans.set_byte_enable_length(0);
   trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
@@ -290,7 +290,7 @@ void armcore_tlm::copro_write(u4_t cpn, u4_t cpr, u4_t cpm, u32_t data, u3_t op1
 
   cp_request_extension ext(cpr, cpm, op1, op2);
 
-  PW_TLM_PAYTYPE trans;
+  PRAZOR_GP_T trans;
   trans.set_extension(&ext);
   trans.set_byte_enable_length(0);
   trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
@@ -326,6 +326,7 @@ void armcore_tlm::recompute_pvt_parameters() // This callback invoked by POWER3 
 
   pw_power leakage = pw_power(10.0, PW_mW);
   set_static_power(leakage);
+  cout << "armcore_tlm rez name=" << name() << "  leakage power=" << leakage << "  instruction_energy=" << m_instruction_energy << "\n";
 #endif
 }
 
@@ -344,8 +345,6 @@ armcore_tlm::armcore_tlm(sc_core::sc_module_name names, u8_t pID, bool harvardf)
   recompute_pvt_parameters();
   iss_reset();
   over = false;
-  lt_i_delay = SC_ZERO_TIME;
-  lt_d_delay = SC_ZERO_TIME;
 
 #ifdef BSYSTEM
   pthreadDelegate<armcore_tlm> *delegate = new pthreadDelegate<armcore_tlm> (this, &armcore_tlm::run);
@@ -401,13 +400,13 @@ bool *armcore_tlm::connect_interrupt(bool *c)
 
 
 // Instruction mini-cache for other half of a 64 bit word.
-bool armcore_tlm::ins_fetcher_t::fetch(u32_t adr, u32_t &i, sc_time &lt_delay)
+bool armcore_tlm::ins_fetcher_t::fetch(u32_t adr, u32_t &i, lt_delay &runahead)
 { 
   bool ok = true;
   u32_t a1 = adr & ~7;
   if (a1 != cached_adr)
     {
-      ok = parent->busaccess.instr_fetch64(a1, cached_ins, 0, lt_delay);
+      ok = parent->busaccess.instr_fetch64(a1, cached_ins, 0, runahead);
       cached_adr = a1;
     }
 #if 0
@@ -430,11 +429,11 @@ void armcore_tlm::lt_all_sync() // Roll all loosely-timed metrics down to accoun
 
       if (penalties)
 	{
-	  m_qk.inc(penalties * m_mispredict_time_penalty);
+	  master_runahead += (penalties * m_mispredict_time_penalty);
 	  POWER3(record_energy_use(m_mispredict_energy_penalty * penalties));
 	}
     }
-  m_qk.sync();
+  master_runahead.perhaps_sync();
 }
 
 // Main ISS process loop for the ARM model.
@@ -449,7 +448,7 @@ void armcore_tlm::run()
 
       //printf("%s: Tick pc=0x%x  state=%i %s\n", myname(), get_pc(), runstate, state_string(runstate));
 
-      if (m_qk.need_sync()) lt_all_sync();   // Keeper synchronize when quantum is reached
+      lt_all_sync(); 
       if (IRQ.read()) // Level-sensitive interrupt.
 	{
             if(wait_for_interrupt) {
@@ -487,9 +486,9 @@ void armcore_tlm::run()
 	  continue;
 	}
 
-      sc_time ins_start = m_qk.get_current_time(); // This is local_time+sc_time_stamp()
-      lt_i_delay = SC_ZERO_TIME; //
-      lt_d_delay = SC_ZERO_TIME; //ins_start; // SC_ZERO_TIME; //
+
+      lt_i_delay = master_runahead;
+      lt_d_delay = master_runahead;
       if (reset_or_yield_countdown > 0) reset_or_yield_countdown -= 1;
       else 
 	{
@@ -509,24 +508,18 @@ void armcore_tlm::run()
       } else {
           shutdown_requests = 0;
       }
-      sc_time d_end = lt_d_delay + sc_time_stamp(); // Bus cycle end time
-      sc_time i_end = lt_i_delay + sc_time_stamp(); // Bus cycle end time
-      sc_time ins_end = ins_start + m_effective_instruction_period;  //core_period modified by nominal IPC.
+
+      master_runahead += m_effective_instruction_period;  //core_period modified by nominal IPC.
+      //cout << name () << "pre bus delay we are at " << master_runahead << "\n";
+      //      cout << "armcore fold in " << lt_d_delay << "\n";
+      master_runahead << lt_d_delay; // Join with any external operations on the d-cache
+      master_runahead << lt_i_delay; // Join with any external operations on the i-cache
+      //cout << name () << "post bus delay we are at " << master_runahead << "\n";
 
 #if 0
       cout << name () << " ktime=" << sc_time_stamp() << "\n";
       cout << name () << " lt_busdelay was i=" << lt_i_delay << " d=" << lt_d_delay << "\n";
-      cout << name () << " ext_end was d=" << d_end << " and i=" << i_end << "\n";
-      //cout << name () << " ins_end was " << ins_end << "\n";
-      cout << name () << " ins_start was " << ins_start << "\n";
-      cout << name() << " iss: kernel=" << sc_time_stamp() << " start=" << ins_start << " d_del=" << (d_end-ins_start) << " i_del=" << (i_end-ins_start) << " core_del=" << (ins_end-ins_start) <<  " icount=" << stats.m_Instructions << "\n";
 #endif
-
-      // Retire join: take maximum of internal and external delays at join. - This is not modelling out of order execution within the Quantum or basic block.
-#define TMAX(X, Y) ((X)>(Y)?(X):(Y))
-
-
-      m_qk.set(TMAX(ins_end, TMAX(d_end, i_end))-sc_time_stamp());
 
       if (1 && busaccess.traceregions) // all tracing is inside the armisa for now. this does it every clock.
 	{
@@ -541,8 +534,7 @@ void armcore_tlm::run()
     }
   lt_all_sync();
 
-  if(m_core_no == 0)
-      sim_done("Finished simulation\n");
+  if(m_core_no == 0) sim_done("armcore_tlm: Finished simulation\n");
 }
 
 

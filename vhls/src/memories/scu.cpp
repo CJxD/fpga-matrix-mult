@@ -44,28 +44,22 @@ void scu::init() {
     for(int i = 0; i < target_socket.size(); i++) {
       m_stats[i].reset();
     }
-
-    snoop_delay =
-      (sc_time*) malloc(sizeof(sc_time) * target_socket.size());
-    for(int i = 0; i < target_socket.size(); ++i)
-      snoop_delay[i] = SC_ZERO_TIME;
 }
 
 void scu::b_transport(
     int id, 
-    PW_TLM_PAYTYPE &trans, 
-    sc_time &delay) {
+    PRAZOR_GP_T &trans, 
+    sc_time &delay_) {
 
     u64_t addr = trans.get_address();
 
     ccache_state_extension* c_ext = 0;
     trans.get_extension(c_ext);
     if(!c_ext) {
-        // forward to secondary storage
+        // forward directly to secondary storage
 	assert(initiator_socket);
-        (*initiator_socket)->b_transport(trans, delay);
-        
-        return;        
+        (*initiator_socket)->b_transport(trans, delay_);
+	return;
     }
 
     assert(c_ext != 0);
@@ -85,7 +79,7 @@ void scu::b_transport(
 
         // forward
 	assert(initiator_socket);
-        (*initiator_socket)->b_transport(trans, delay);
+        (*initiator_socket)->b_transport(trans, delay_);
         
         return;
     }
@@ -96,13 +90,14 @@ void scu::b_transport(
     m_stats[id].snoop_requests.fetch_add(1);
 
     assert(snoop_socket);
+
     // this is allocated on stack so that we don't have
     // to deal with memory manager
     u8_t data[snoop_socket->size() - 1][trans.get_data_length()];
 
     // Forward requests to snooped caches except
     // the one that sent the request
-    PW_TLM_PAYTYPE* snoop_trans[snoop_socket->size() - 1];
+    PRAZOR_GP_T* snoop_trans[snoop_socket->size() - 1];
     
     u64_t expected = 0;
     if(!(served_requests[id].compare_exchange_strong(expected, (snoop_socket->size() - 1)))) {
@@ -117,7 +112,7 @@ void scu::b_transport(
         ccache_state_extension* new_cext = new ccache_state_extension;
         new_cext->origin = id;
         new_cext->trans = c_ext->trans;
-        snoop_trans[tranid] = snoop_state_mm.allocate(); 
+        snoop_trans[tranid] = prazor_gp_mm_t::instance()->allocate(); 
         snoop_trans[tranid]->set_auto_extension<ccache_state_extension>(new_cext);
         snoop_trans[tranid]->acquire();
         
@@ -129,11 +124,13 @@ void scu::b_transport(
         
         snoop_trans[tranid]->set_response_status(TLM_INCOMPLETE_RESPONSE);
         snoop_trans[tranid]->set_address(trans.get_address());
-        snoop_trans[tranid]->set_data_ptr(&(data[i][0]));
+        snoop_trans[tranid]->set_data_ptr(&(data[tranid][0]));
+
+	snoop_trans[tranid]->ltd = trans.ltd;
         
         tlm_phase ph = BEGIN_REQ;
-        sc_time snoop_delay = SC_ZERO_TIME;
-        ((*snoop_socket)[i])->nb_transport_fw(*(snoop_trans[tranid]), ph, snoop_delay);
+        sc_time snoop_delay_ = SC_ZERO_TIME;
+        ((*snoop_socket)[i])->nb_transport_fw(*(snoop_trans[tranid]), ph, snoop_delay_);
         ++tranid;
     }
 
@@ -146,14 +143,11 @@ void scu::b_transport(
         wait_events[id] = NULL;
     }
 
-    sc_time sdelay = SC_ZERO_TIME;
-    for(int i = 0; i < target_socket.size(); ++i) {
-      if(snoop_delay[i] > sdelay)
-	sdelay = snoop_delay[i];
-      snoop_delay[i] = SC_ZERO_TIME;
-    }
-
-    delay += sdelay;
+    /* Pick up the longest delay observed */
+    trans.ltd = snoop_trans[0]->ltd;
+    for(int i = 1; i < snoop_socket->size() - 1; ++i) 
+      trans.ltd << snoop_trans[i]->ltd;
+      
     SCUTRC(addr, printf("SCU b_transport() -> received back all snoop request for address 0x%lx for port %d\n",
                         addr, id));
 
@@ -172,7 +166,7 @@ void scu::b_transport(
 
     }
 
-    sc_time secondary_lookup_delay = SC_ZERO_TIME;
+    sc_time secondary_lookup_delay_ = SC_ZERO_TIME;
     switch(c_ext->trans) {
       case ccache::ReadShared: 
       case ccache::ReadUnique:
@@ -188,7 +182,7 @@ void scu::b_transport(
 			  trans,
 			  trans.get_data_ptr(),
 			  true, 
-			  secondary_lookup_delay);
+			  secondary_lookup_delay_);
 		  if(c_ext->trans == ccache::ReadShared)
 		    c_ext->state = ccache::UniqueClean;
 		  else
@@ -229,7 +223,7 @@ void scu::b_transport(
 		    trans,
 		    snoop_trans[snoop_trans_idx]->get_data_ptr(),
 		    false,
-		    secondary_lookup_delay);
+		    secondary_lookup_delay_);
 
   		  // now copy data
 		  memcpy(
@@ -279,7 +273,7 @@ void scu::b_transport(
                       trans,
                       snoop_trans[snoop_trans_idx]->get_data_ptr(),
                       false,
-                      secondary_lookup_delay);
+                      secondary_lookup_delay_);
                   break;
               }
 
@@ -301,12 +295,10 @@ void scu::b_transport(
     }
     // END
 
-    delay += secondary_lookup_delay;
     /* Free */
     for(snoop_trans_idx = 0; snoop_trans_idx < snoop_socket->size() - 1; ++snoop_trans_idx) {
       snoop_trans[snoop_trans_idx]->release();
     }
-
     
     trans.set_response_status(tlm::TLM_OK_RESPONSE);
     
@@ -337,7 +329,7 @@ void scu::stat_report(const char *msg, FILE *fd, bool reset) {
 
 tlm_sync_enum scu::nb_transport_bw(
     int id,
-    PW_TLM_PAYTYPE& trans,
+    PRAZOR_GP_T& trans,
     tlm_phase& phase,
     sc_time& ldelay) {
 
@@ -345,7 +337,6 @@ tlm_sync_enum scu::nb_transport_bw(
     trans.get_extension(c_ext);
     assert(c_ext != 0);
 
-    snoop_delay[id] = ldelay;
     u64_t addr = trans.get_address();
     u64_t val = served_requests[c_ext->origin].fetch_sub(1);
     SCUTRC(addr, printf("SCU::b_transport() -> received back snoop request from port %d for port %d; left %ld\n",
@@ -360,21 +351,24 @@ tlm_sync_enum scu::nb_transport_bw(
 void scu::secondary_operation(
     int id,
     u64_t addr,
-    PW_TLM_PAYTYPE& otrans,
+    PRAZOR_GP_T& otrans,
     u8_t* data, 
     bool read, 
-    sc_time& delay) {
+    sc_time& delay_) {
 
-    PW_TLM_PAYTYPE* trans;
+    PRAZOR_GP_T* trans;
+
+
 
     // allocate transaction
-    trans = snoop_state_mm.allocate(); 
+    trans = prazor_gp_mm_t::instance()->allocate(); 
     trans->acquire();
 
     trans->set_data_length(otrans.get_data_length());
     trans->set_byte_enable_length(0);
     trans->set_byte_enable_ptr(0);
     trans->set_streaming_width(otrans.get_streaming_width());
+
     if(read) {
 #if TRACECOMM
       proc_id_extension* pid = 0;
@@ -390,6 +384,7 @@ void scu::secondary_operation(
     trans->set_response_status(TLM_INCOMPLETE_RESPONSE);
     trans->set_address(addr);
     trans->set_data_ptr(data);
+    trans->ltd = otrans.ltd;
 
     if(read)
         m_stats[id].secondary_read.fetch_add(1);
@@ -405,12 +400,15 @@ void scu::secondary_operation(
                printf("\n"));
     }
     
-    (*initiator_socket)->b_transport(*trans, delay);
+    (*initiator_socket)->b_transport(*trans, delay_);
     if (trans->is_response_error()) {
         printf("ERROR: %s\n", trans->get_response_string().c_str());
 	assert(0);
-    } 
+    }
 
+    otrans.ltd = trans->ltd;
     trans->release();
 }
+
+// eof
 

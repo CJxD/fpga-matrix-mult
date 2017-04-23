@@ -7,12 +7,89 @@
 // (C) 2010 DJ Greaves, University of Cambridge, Computer Laboratory.
 //
 
-// SystemC modules should be defined with SC_MODULE_PR instead of SC_MODULE
-
-// This module is unused now - we use TLM POWER3 instead.
-
 
 #include "tenos.h"
+#include "lt_delay.h"
+
+#ifdef TLM_POWER3
+#define TEMP_PT_BYPASS 1
+#include <tlm_power>
+#define POWER3(X) X
+using namespace sc_pwr;
+#else
+typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
+typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
+#define POWER3(X)
+#endif
+
+class prazor_gp_t;
+
+class prazor_gp_mm_t: public tlm::tlm_mm_interface
+{
+ public:
+  prazor_gp_t* allocate();
+
+  void free(tlm::tlm_generic_payload* disposeme);
+
+  static prazor_gp_mm_t* instance();
+  
+  void free(prazor_gp_t *disposeme);
+
+ protected:
+  /* Private constructor */
+ prazor_gp_mm_t() 
+  : free_list(0),
+    empties(0),
+    lck("prazor_gp_mm_t") {
+  }
+  
+ private:
+  struct access {
+    prazor_gp_t* trans;
+    access* next;
+    access* prev;
+  };
+
+  access* free_list;
+  access* empties;
+
+  sc_mutex lck;
+  
+  prazor_gp_t *freelist;
+  static prazor_gp_mm_t* _instance; 
+};
+
+
+class prazor_gp_t : public PW_TLM_PAYTYPE
+{
+ public:
+  lt_delay ltd;
+
+  // Constructors 1/2
+ prazor_gp_t() 
+   : PW_TLM_PAYTYPE() {
+  }
+
+  // Constructors 2/2
+  explicit prazor_gp_t(prazor_gp_mm_t* mm) 
+    : PW_TLM_PAYTYPE(mm) {
+    }
+ 
+};
+
+
+typedef prazor_gp_t PRAZOR_GP_T;
+
+
+struct tlm_pw_base_protocol_types
+{
+  //  typedef PW_TLM_PAYTYPE tlm_payload_type;
+  typedef prazor_gp_t tlm_payload_type;
+  typedef tlm::tlm_phase tlm_phase_type;
+};
+
+typedef tlm_pw_base_protocol_types PW_TLM_TYPES;
+
 
 #ifdef PRAZOR
 #define IF_PRAZOR(X) X
@@ -119,4 +196,10 @@ struct sc_module_pr : ::sc_core::sc_module
 };
 
 
+// These macros are intended as a bridging feature as we migrate from the old sc_time to the new lt_dleay.
+// Use this macro to register a delay in the loose-time system.
+// I have renamed the variable delay as delay_ in many places to show we now deprecate it.
+#define  AUGMENT_LT_DELAY(TRANS, DELAY, LL)  TRANS += (LL)
+#define  COLLECT_LT_DELAY(OLD, NEW)  (NEW)
+#define  LT_RESYNCH(OLD, NEW)  NEW.force_synch() /* or wait(OLD); OLD = SC_ZERO_TIME; */
 #endif

@@ -29,7 +29,7 @@ arm_mmu::arm_mmu(sc_module_name name, u32_t _size) : // constructor
   cores_target.register_b_transport(this, &arm_mmu::b_core_access);
 }
 
-void arm_mmu::b_cp15_access(PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_mmu::b_cp15_access(PRAZOR_GP_T &trans, sc_time &delay) {
     cp15_mmu_control_extension *ext = 0;
     trans.get_extension(ext);
     assert(ext);
@@ -117,11 +117,11 @@ void arm_mmu::b_cp15_access(PW_TLM_PAYTYPE &trans, sc_time &delay) {
 // +-- (4b) if caches are not present
 // +-------(a) SCU
 
-void arm_mmu::b_core_access(int id, PW_TLM_PAYTYPE &trans, sc_time &delay) {
+void arm_mmu::b_core_access(int id, PRAZOR_GP_T &trans, sc_time &delay) {
 
     if(!m_active) {
         // simply forward transaction
-        return memories_initiator[id+3]->b_transport(trans, delay);
+      return memories_initiator[id+3]->b_transport(trans, delay);
     }
 
     // MMU is active so we need to do address translation
@@ -515,7 +515,7 @@ arm_mmu::faults arm_mmu::l1_descriptor(
 u32_t arm_mmu::external_memory_access(
     u32_t addr) {
 
-    PW_TLM_PAYTYPE trans;
+    PRAZOR_GP_T trans;
     trans.set_byte_enable_length(0);
     trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
     trans.set_read();
@@ -615,7 +615,7 @@ bool arm_mmu::cp15_op(u4_t cpr, u4_t crm, u32_t& data, u3_t op1, u3_t op2, bool 
     ext.op1 = op1;
     ext.op2 = op2;      
     
-    PW_TLM_PAYTYPE trans;
+    PRAZOR_GP_T trans;
     trans.set_extension(&ext);
     trans.set_byte_enable_length(0);
     trans.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
@@ -627,7 +627,10 @@ bool arm_mmu::cp15_op(u4_t cpr, u4_t crm, u32_t& data, u3_t op1, u3_t op2, bool 
     trans.set_data_length(4);
     trans.set_data_ptr((unsigned char*) &data);
 
-    sc_time delay = SC_ZERO_TIME;
+    /* TODO: Need to find out what is latency
+     * in accessing CP15 registers before implementing
+     * propagation of latency */
+    sc_time delay = SC_ZERO_TIME;    
     cp15_initiator->b_transport(trans, delay);
 
     trans.clear_extension<cp_request_extension>(&ext);

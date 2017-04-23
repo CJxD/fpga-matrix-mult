@@ -39,7 +39,9 @@ extern int SHOW_SIM_OUTPUT; //enable or disable PRINT() statements -- set by fla
 
 #define ERROR(str) std::cerr<<"[ERROR ("<<__FILE__<<":"<<__LINE__<<")]: "<<str<<std::endl;
 
-#define DEBUG_BUILD 1 // Temp djg
+//#define LOG_OUTPUT  1 // Temp djg
+//#undef  NO_OUTPUT
+//#define DEBUG_BUILD 1 // Temp djg
 
 #ifdef DEBUG_BUILD
 	#define DEBUG(str)  std::cerr<< str <<std::endl;

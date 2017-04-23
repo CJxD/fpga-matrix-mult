@@ -43,11 +43,11 @@ class x86core : public COREISA_IF
   void reset(bool);
   u64_t install_image(const char*);
 
-  tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
+  
+  //tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
 
   bool halted; 
-  sc_time lt_i_delay;
-  sc_time lt_d_delay;
+  lt_delay master_runahead, lt_i_delay, lt_d_delay;
 
   int simulator_cmd(int cmd, int arg0, int arg1, u32_t *rp);
 

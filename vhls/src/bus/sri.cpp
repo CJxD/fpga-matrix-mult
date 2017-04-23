@@ -102,7 +102,7 @@ u64_t sri::get_real_address(u64_t addr) {
 }
 
 // TLM-2 blocking transport method
-void sri::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
+void sri::b_transport(int id, PRAZOR_GP_T& trans, sc_time &delay) {
   // System request interface has mconfig::cores_per_socket incoming
   // links and for now it just redirects a message to the crossbar
 
@@ -139,7 +139,7 @@ void sri::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
 
      
       if(wait_tran_map.count(a) != 0) {
-          PW_TLM_PAYTYPE* in_process_tran = wait_tran_map[a].get<0>();
+          PRAZOR_GP_T* in_process_tran = wait_tran_map[a].get<0>();
           if(in_process_tran != NULL && in_process_tran->get_data_ptr() == 0 && in_process_tran->is_write()) {
               // the transaction that we are processing is invalidation, therefore
               // if the transaction that we want to process writes then it will
@@ -158,7 +158,7 @@ void sri::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
 
       while(true) {
 #if 0
-	PW_TLM_PAYTYPE* wait_tran;
+	PRAZOR_GP_T* wait_tran;
 	if(wait_tran_map.count(a) != 0) {
 	  tie(wait_tran, tuples::ignore, tuples::ignore) = wait_tran_map[a];
 	  if(trans.is_write() && 
@@ -288,8 +288,8 @@ void sri::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
   // used for stats
   mm->paused_time = &address_paused_time[a];
   mm->owner_node = &(address_start_access_time[a].second);
-  //PW_TLM_PAYTYPE* reqm = req_msg_mm.allocate();
-  PW_TLM_PAYTYPE* reqm = m_mm->allocate();
+  //PRAZOR_GP_T* reqm = req_msg_mm.allocate();
+  PRAZOR_GP_T* reqm = m_mm->allocate();
   reqm->acquire();
     
   reqm->set_extension<req_msg>(mm);
@@ -318,11 +318,11 @@ void sri::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
   
 #if MOESI_TIMING
   // here we are crossing clock boundary from processor to northbridge
-  delay += m_src_clk_cycles * m_core_period
-    + m_dest_clk_cycles * m_period;
+  AUGMENT_LT_DELAY(trans.ltd, delay,  m_src_clk_cycles * m_core_period
+		   + m_dest_clk_cycles * m_period);
 
   // it takes 3 cycles to access memory tables
-  delay += m_mem_table_access_cycles * m_period;
+  AUGMENT_LT_DELAY(trans.ltd, delay,  m_mem_table_access_cycles * m_period);
 #endif
 
   // type of access
@@ -416,13 +416,13 @@ void sri::b_transport(int id, PW_TLM_PAYTYPE& trans, sc_time &delay) {
   }
 }
 
-bool sri::get_direct_mem_ptr(int n, PW_TLM_PAYTYPE& trans, tlm::tlm_dmi& dd) {
+bool sri::get_direct_mem_ptr(int n, PRAZOR_GP_T& trans, tlm::tlm_dmi& dd) {
   
   // MP: To be implemented (TODO)
   assert(0);
 }
 
-void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
+void sri::peq_cb(PRAZOR_GP_T& trans, const tlm_phase& ph) {
   ml->lock();
   if(ph == END_REQ) {
     sri_msg* mm = 0;
@@ -436,7 +436,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
     SRIDEBUG1(fprintf(stdout, "%s: request satisfied by memory controller for cache addr 0x%lx\n", 
 		     name(), mm->cache_addr));		      
     assert(wait_tran_map.count(mm->cache_addr) != 0);
-    PW_TLM_PAYTYPE* wait_tran; sc_event* mem_req;
+    PRAZOR_GP_T* wait_tran; sc_event* mem_req;
     tie(wait_tran, mem_req, tuples::ignore) = wait_tran_map[mm->cache_addr];
     //wait_tran_map.erase(mm->cache_addr);
 
@@ -523,7 +523,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	probe_msg_busy = false;
 	active_probe_invalidation = false;
 	if(probe_requests.size() > 0) {
-	  PW_TLM_PAYTYPE* tt = probe_requests.front();
+	  PRAZOR_GP_T* tt = probe_requests.front();
 	  tlm::tlm_phase ph = tlm::BEGIN_REQ;
 	  sc_time delay = SC_ZERO_TIME;
 	  probe_requests.pop();
@@ -551,7 +551,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	ack->addr = probem->cache_addr;
 	ack->ty = ack_msg::UNKNOWN;
 
-	PW_TLM_PAYTYPE* ackm = m_mm->allocate();	
+	PRAZOR_GP_T* ackm = m_mm->allocate();	
 
 	ackm->set_extension<ack_msg>(ack);
 	ackm->acquire();
@@ -573,15 +573,15 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	
 #if MOESI_TIMING	
 	// here we are crossing clock boundary from northbridge to processor
-	delay += m_src_clk_cycles * m_period
-	  + m_dest_clk_cycles * m_core_period;
+	AUGMENT_LT_DELAY(trans.ltd, delay,  m_src_clk_cycles * m_period
+			 + m_dest_clk_cycles * m_core_period);
 #endif
 
 	/*trans.acquire();
 	  init_socket[i]->nb_transport_fw(trans, ph, delay);*/
 	
 	probe_msg* probem_clone = probem->clone();
-	PW_TLM_PAYTYPE* trans_clone = m_mm->allocate();
+	PRAZOR_GP_T* trans_clone = m_mm->allocate();
 	
 	trans_clone->acquire();
 	
@@ -670,8 +670,8 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	  // from processor to northbridge
 	  sc_time delay = SC_ZERO_TIME;
 #if MOESI_TIMING
-	  delay += m_core_period * m_src_clk_cycles
-	    + m_period * m_dest_clk_cycles;
+	  AUGMENT_LT_DELAY(trans.ltd, delay,  m_core_period * m_src_clk_cycles
+			   + m_period * m_dest_clk_cycles);
 #endif
 
 	  if(ackm->write 
@@ -745,7 +745,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 		 || (wb_ack_data_tran != 0
 		     && wb_ack_data_tran->get_data_ptr() != 0))) {
 	    	    
-	    PW_TLM_PAYTYPE* tt = 0;
+	    PRAZOR_GP_T* tt = 0;
 	    if(cache_ack_data_tran != 0)
 	      tt = cache_ack_data_tran;
 	    else if(wb_ack_data_tran != 0) 
@@ -800,7 +800,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 
 #if MOESI_TIMING
 	    // access to memory mapping tables
-	    delay += m_mem_table_access_cycles * m_period;
+	    AUGMENT_LT_DELAY(trans.ltd, delay,  m_mem_table_access_cycles * m_period);
 #endif
 
 	    ack_msg* mm = 0;
@@ -816,7 +816,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 								 delay);
 	  }
 	  else {
-	    PW_TLM_PAYTYPE* to_send = &trans;	  
+	    PRAZOR_GP_T* to_send = &trans;	  
 	    if(wb_ack_data_tran) {
                 // If we have cache hierarchy (say L1 and L2) then it is
                 // possible for core A to have cache line for address X
@@ -891,7 +891,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	    probe_addr = -1;
 	    active_probe_invalidation = false;
 	    if(probe_requests.size() > 0) {
-	      PW_TLM_PAYTYPE* tt = probe_requests.front();
+	      PRAZOR_GP_T* tt = probe_requests.front();
 	      tlm::tlm_phase ph = tlm::BEGIN_REQ;
 	      sc_time delay = SC_ZERO_TIME;
 	      probe_requests.pop();
@@ -919,7 +919,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 			 name(), ackm->orig_node, ackm->addr, m_total_sockets, ack_msgs[ackm->addr]));
 
 	assert(wait_tran_map.count(ackm->addr) != 0);
-	PW_TLM_PAYTYPE* wait_tran;
+	PRAZOR_GP_T* wait_tran;
 	tie(wait_tran, tuples::ignore, tuples::ignore) = wait_tran_map[ackm->addr];
 
 	if(trans.get_data_ptr() != 0) {
@@ -1040,7 +1040,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	  assert(ack_msgs_bits[ackm->addr]->count() == m_total_sockets 
 		 || (init_socket.size() == 1 && ack_msgs_bits[ackm->addr]->count() == 1));
 	  assert(wait_tran_map.count(ackm->addr) != 0);
-	  PW_TLM_PAYTYPE* wait_tran; sc_event* mem_req; int home_node;
+	  PRAZOR_GP_T* wait_tran; sc_event* mem_req; int home_node;
 	  tie(wait_tran, mem_req, home_node) = wait_tran_map[ackm->addr];
 	  assert(home_node != -1);
 	  // send message to home tile to inform that all 
@@ -1048,8 +1048,8 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 	  unblock_msg* mm = new unblock_msg;
 	  mm->dest_node = ackm->home_node;
 	  mm->creator_node = node;
-	  //PW_TLM_PAYTYPE* unblockm = unblock_msg_mm.allocate();
-	  PW_TLM_PAYTYPE* unblockm = m_mm->allocate();
+	  //PRAZOR_GP_T* unblockm = unblock_msg_mm.allocate();
+	  PRAZOR_GP_T* unblockm = m_mm->allocate();
 	  unblockm->acquire();
 	  
 	  unblockm->set_extension<unblock_msg>(mm);
@@ -1132,7 +1132,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 
 #if MOESI_TIMING
                 // updates memory tables
-              delay += m_mem_table_access_cycles * m_period;
+              AUGMENT_LT_DELAY(trans.ltd, delay,  m_mem_table_access_cycles * m_period;
 #endif
 }*/
               sri* adrt = this;
@@ -1157,8 +1157,8 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
               sri_mm->originating_node = node;
 	      sri_mm->cache_addr = ackm->addr;
 	      
-	      //PW_TLM_PAYTYPE* srim = sri_msg_mm.allocate();
-	      PW_TLM_PAYTYPE* srim = m_mm->allocate();
+	      //PRAZOR_GP_T* srim = sri_msg_mm.allocate();
+	      PRAZOR_GP_T* srim = m_mm->allocate();
 	      srim->acquire();
 
 	      srim->set_extension<sri_msg>(sri_mm);
@@ -1262,7 +1262,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
     probe_addr = -1;
     active_probe_invalidation = false;
     if(probe_requests.size() > 0) {
-      PW_TLM_PAYTYPE* tt = probe_requests.front();
+      PRAZOR_GP_T* tt = probe_requests.front();
       tlm::tlm_phase ph = tlm::BEGIN_REQ;
       sc_time delay = SC_ZERO_TIME;
       probe_requests.pop();
@@ -1275,7 +1275,7 @@ void sri::peq_cb(PW_TLM_PAYTYPE& trans, const tlm_phase& ph) {
 }
 
 tlm_sync_enum sri::nb_transport_fw(int id, 
-				   PW_TLM_PAYTYPE& trans,
+				   PRAZOR_GP_T& trans,
 				   tlm_phase& phase,
 				   sc_time& delay) {
   // check to see if message is ack message
@@ -1286,16 +1286,16 @@ tlm_sync_enum sri::nb_transport_fw(int id,
 
 
 tlm_sync_enum sri::nb_transport_bw(int id,
-				   PW_TLM_PAYTYPE& trans,
+				   PRAZOR_GP_T& trans,
 				   tlm_phase& phase,
 				   sc_time& delay) {
   m_peq.notify(trans, phase, delay);
   return TLM_ACCEPTED;
 }
 
-void sri::notify_parallel_cache_lines(PW_TLM_PAYTYPE& trans) {
+void sri::notify_parallel_cache_lines(PRAZOR_GP_T& trans) {
   while(!cache_line_par.empty()) {
-    PW_TLM_PAYTYPE* t; sc_event* e;
+    PRAZOR_GP_T* t; sc_event* e;
     tie(t, e) = cache_line_par.front();
     cache_line_par.pop();
     

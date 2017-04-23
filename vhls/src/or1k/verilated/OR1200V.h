@@ -43,7 +43,7 @@ class OR1200V :
 
   ins_fetcher_t(COREISA_IF *parent) : parent(parent) { cached_adr = 1; // an invalid address
     };
-    void fetch(u32_t adr, u32_t &i, sc_time &delay);
+    void fetch(u32_t adr, u32_t &i, lt_delay &delay);
   } ins_fetcher;
 
 
@@ -67,14 +67,15 @@ class OR1200V :
   } stats;
 
  private:
-  void ifetch_step(sc_time &delay);
+  lt_delay master_runahead;
+  void ifetch_step(lt_delay &delay);
   void run();
-  tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
+  //tlm_utils::tlm_quantumkeeper m_qk; // Quantum keeper for temporal decoupling 
 
   int simulator_cmd(int cmd, int arg0, int arg1, u32_t *rp);
 
-  int eval_bdoor_read(oraddr_t memaddr, u32_t &rdata, sc_time &lt_d_delay);
-  int eval_bdoor_write(oraddr_t memaddr, u32_t wdata, sc_time &lt_d_delay);
+  int eval_bdoor_read(oraddr_t memaddr, u32_t &rdata, lt_delay &lt_d_delay);
+  int eval_bdoor_write(oraddr_t memaddr, u32_t wdata, lt_delay &lt_d_delay);
 
  public:
 

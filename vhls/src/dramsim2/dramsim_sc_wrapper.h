@@ -19,6 +19,7 @@
 #include "systemc.h"
 #include "tlm.h"
 #include "tlm_utils/simple_target_socket.h"
+#include "prazor.h"
 #include "tenos.h"
 #include "llsc_extension.h"
 //#include "support/mamba_extension.h"
@@ -27,17 +28,6 @@
 
 #include <unordered_map>
 
-#ifndef POWER3
-#ifdef TLM_POWER3
-#include <tlm_power>
-#define POWER3(X) X
-using namespace sc_pwr;
-#else
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#define POWER3(X)
-#endif
-#endif
 
 
 #include "dist/MemorySystem.h"
@@ -53,7 +43,7 @@ class dramsim_ini_t
   const char *traceFileName;
   int megsOfMemory;
 
-  void set_as_an_example(int no, int sizeInMegs = 4 * 1024);
+  void set_as_an_example(int no_, int sizeInMegs = 4 * 1024);
 };
 
 #define MAX_DRAMSIM_THREADS 32
@@ -80,7 +70,7 @@ class dramsim_sc_wrapper:
   double dyn_energy_sofar; 
 #ifdef TLM_POWER3
   void energy_accounter(sc_pwr::pw_agent_record *p_agent,
-			PW_TLM_PAYTYPE *trans,
+			PRAZOR_GP_T *trans,
 			tlm::tlm_command cmd = tlm::tlm_command::TLM_IGNORE_COMMAND);
 #endif
 
@@ -127,7 +117,7 @@ class dramsim_sc_wrapper:
   };
 
   int m_systemID;
-  void blockwhile(TransactionType transType, u64_t adr, sc_time &delay); // Main blocking TLM operation.
+  void blockwhile(TransactionType transType, u64_t adr, lt_delay &ltd, sc_time &delay); // Main blocking TLM operation.
 
 #define INTERNALPAGESIZE (4096LLU * 8LLU) // 4K pages in bits
   // Internally we use pages to save VM on the modelling workstation
@@ -167,18 +157,20 @@ class dramsim_sc_wrapper:
 
 
   // blocking transport interface prototype
-  void b_access(PW_TLM_PAYTYPE &trans, sc_time &delay);
-  void peq_cb(PW_TLM_PAYTYPE &trans, const tlm::tlm_phase& ph);
+  void b_access(PRAZOR_GP_T &trans, sc_time &delay);
+  void peq_cb(PRAZOR_GP_T &trans, const tlm::tlm_phase& ph);
   
   u64_t mem_base;      // Base address in bytes
   u64_t mem_size_bytes;// No of bytes
   u8_t mem_width;      // Bits per location
   u64_t mem_blocksize_bytes;
-  bool get_direct_mem_ptr(PW_TLM_PAYTYPE&, tlm::tlm_dmi& dmi_data);
+  bool get_direct_mem_ptr(PRAZOR_GP_T&, tlm::tlm_dmi& dmi_data);
  private:
 
 #ifdef TLM_POWER3
-  pw_energy hi_energy_op, lo_energy_op, llsc_energy_op;
+  // Not used when dramsim2 is being used.
+  //  pw_energy hi_energy_op, lo_energy_op, 
+  pw_energy llsc_energy_op;
 #endif
 
   const sc_time clock_period;
@@ -198,9 +190,11 @@ class dramsim_sc_wrapper:
     u64_t m_read_ops, m_write_ops;
     u64_t m_read_bytes, m_write_bytes;
     u64_t m_row_activations;
+    u64_t m_refreshes;
     stats_t() { reset(); }
     void reset()
     {
+      m_refreshes = 0 ;
       m_row_activations = 0;
       m_read_ops = 0;
       m_write_ops = 0;
@@ -225,7 +219,7 @@ class dramsim_sc_wrapper:
   
   void loaddtb(const char *blob, u64_t offset);
 
-  tlm::tlm_sync_enum nb_transport_fw(PW_TLM_PAYTYPE& trans,
+  tlm::tlm_sync_enum nb_transport_fw(PRAZOR_GP_T& trans,
 				     tlm::tlm_phase& phase,
 				     sc_time& delay);
   

@@ -9,18 +9,7 @@
 #define _OPTERON_MSGS_H
 
 #include "systemc.h"
-
-#ifndef PW_TLM_PAYLOAD
-#define PW_TLM_PAYLOAD 3 // for now - need to make this work without.
-#endif  // PW_TLM_PAYLOAD
-#ifdef TLM_POWER3
-#include "pw_tlm_payload.h"
-#else
-#include "tlm.h"
-typedef tlm::tlm_base_protocol_types PW_TLM_TYPES;
-typedef tlm::tlm_generic_payload PW_TLM_PAYTYPE;
-#endif
-
+#include "prazor.h"
 #include "tenos.h"
 
 // if it is set then we time moesi messages
@@ -283,19 +272,19 @@ class opteron_msg_mm : public tlm::tlm_mm_interface
  public:
   opteron_msg_mm();
 
-  PW_TLM_PAYTYPE* allocate();
+  PRAZOR_GP_T* allocate();
 
-  void free(PW_TLM_PAYTYPE* r);
+  void free(PRAZOR_GP_T* r);
 #ifdef TLM_POWER3
   void free(tlm::tlm_generic_payload* trans) {
-    free((PW_TLM_PAYTYPE*)trans);
+    free((PRAZOR_GP_T*)trans);
   }
 #endif
 
 
  private:
   struct access {
-    PW_TLM_PAYTYPE* trans;
+    PRAZOR_GP_T* trans;
     access* next;
     access* prev;
   };
