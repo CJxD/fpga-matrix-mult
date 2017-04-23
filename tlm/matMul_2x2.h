@@ -46,7 +46,7 @@ read mode
 struct matMul_2x2:
 	public sc_module
 #ifdef TLM_POWER3
-  , public pw_module
+  , public sc_pwr::pw_module
 #endif
 {
 	tlm_utils::simple_target_socket<matMul_2x2, BUS_WIDTH, base_types_t> port0;
