@@ -13,6 +13,9 @@
 #define BUS_WIDTH 64
 
 #ifdef TLM_POWER3
+#ifndef PW_TLM_PAYLOAD
+#define PW_TLM_PAYLOAD 1
+#endif
 #include <tlm_power>
 typedef PW_TLM_TYPES base_types_t;
 typedef PW_TLM_PAYTYPE payload_t;
@@ -33,17 +36,17 @@ using namespace std;
 #define MAT	0x00
 #define RES	0x0C
 
-#define LAYER 						4
-#define FREQ 							200e6
-#define NS_PER_CYCLE 			5
-#define LATENCY_PER_LAYER 3
-#define LATENCY_WRITE 		LAYER*LATENCY_PER_LAYER*NS_PER_CYCLE
-#define LATENCY_READ 			1*NS_PER_CYCLE
+#define LAYER				4
+#define FREQ				200e6
+#define NS_PER_CYCLE		5
+#define LATENCY_PER_LAYER	3
+#define LATENCY_WRITE		LAYER*LATENCY_PER_LAYER*NS_PER_CYCLE
+#define LATENCY_READ		1*NS_PER_CYCLE
 	
 struct matMul_chained:
 	public sc_module
 #ifdef TLM_POWER3
-	, public pw_module
+	, public sc_pwr::pw_module
 #endif
 {
 	tlm_utils::simple_target_socket<matMul_chained, BUS_WIDTH, base_types_t> port0;
@@ -76,8 +79,6 @@ struct matMul_chained:
 			for (int j = 0; j < 2; j++)
 				MO[i*2 + j] = MA[i*2 + j] + MB[i*2 + j];
 	}
-
-
 
 	void NN(u8* MA, u8* MO)
 	{
@@ -125,7 +126,7 @@ struct matMul_chained:
 			delay += sc_time(LATENCY_READ, SC_NS);
 		}
 		
-		trans.set_response_status( tlm::TLM_OK_RESPONSE);
+		trans.set_response_status(tlm::TLM_OK_RESPONSE);
 	}
 };
 

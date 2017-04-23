@@ -1,7 +1,9 @@
-LDLIBS=-lsystemc
+LDLIBS=-lsystemc -ltlm-power3
 
 .PHONY: all run clean-objs clean
 all: matMul
+
+CXXFLAGS+= -DTLM_POWER3
 
 matMul.o: matMul.cpp
 	$(CXX) -std=c++11 $(CXXFLAGS) -c $^ -o $@

@@ -53,6 +53,12 @@ SC_MODULE(matMul)
 	
 		printf("res = 0x%08x\n", res);
 		printf("matrix form:\n%d %d\n%d %d\n", res & 0xFF, res>>8 & 0xFF, res>>16 & 0xFF, res>>24 & 0xFF); 
+		printf("time taken: %fs\n", d.to_seconds());
+		
+		#ifdef TLM_POWER3
+		const sc_pwr::pw_energy l_global_energy = sc_pwr::pw_stat_observer_base::get_global_energy();
+		printf("energy used: %fJ\n", l_global_energy.to_joules());
+		#endif
 	}
 };
 
