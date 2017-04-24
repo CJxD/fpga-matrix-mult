@@ -12,7 +12,7 @@
 #define HOST        "localhost"
 #define MESSAGESIZE     8192
 
-#define N_ENERGIES  1
+#define N_ENERGIES  2
 
 extern int currentprobe_open(struct hostent *hp, const char *hostname);
 extern int currentprobe_operate(int *energies, const char *hostname);
