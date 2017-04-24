@@ -13,12 +13,30 @@
 #define BUS_WIDTH 64
 
 #ifdef TLM_POWER3
+// Use TLM POWER payloads
+#ifndef PW_TLM_PAYLOAD
+#define PW_TLM_PAYLOAD 3
+#endif
 #include <tlm_power>
+
 typedef PW_TLM_TYPES base_types_t;
+// If running under Prazor, use its own power library types
+#ifdef PRAZOR_H
 typedef PRAZOR_GP_T payload_t;
 #else
+typedef PW_TLM_PAYTYPE payload_t;
+#endif
+#else
+// Regular TLM types
 typedef tlm::tlm_base_protocol_types base_types_t;
 typedef tlm::tlm_generic_payload payload_t;
+#endif
+
+// If using Prazor, delays are added with AUGMENT_LT_DELAY
+// -> convert standard SystemC delay marking with the above
+#ifndef AUGMENT_LT_DELAY
+#define AUGMENT_LT_DELAY(TRANS, DELAY, LL) \
+			DELAY += (LL)
 #endif
 
 #define u8 uint8_t
